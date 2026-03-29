@@ -15,6 +15,7 @@ from typing import Any
 
 from django.core.asgi import get_asgi_application
 
+from dfr.routing import finalize_routes
 from dfr.types import DFRBootPhase
 
 __all__ = ["DFRApp", "DFRBootstrapError", "DFRSettings"]
@@ -88,7 +89,7 @@ class DFRApp:
             self._boot_phase = DFRBootPhase.DJANGO_INITIALIZED
 
         if self._boot_phase is DFRBootPhase.DJANGO_INITIALIZED:
-            # Routing/materialization hooks will be invoked here in later batches.
+            finalize_routes()
             self._boot_phase = DFRBootPhase.ROUTES_FINALIZED
 
         self._boot_phase = DFRBootPhase.READY
