@@ -155,6 +155,10 @@ class DIContainer:
         """Initialize request dependency scope."""
 
         state = _ensure_state(request)
+        existing = getattr(state, "_dfr_di_scope", None)
+        if existing is not None:
+            await existing.exit_stack.aclose()
+
         scope = RequestScope(cache={}, exit_stack=AsyncExitStack())
         await scope.exit_stack.__aenter__()
         setattr(state, "_dfr_di_scope", scope)

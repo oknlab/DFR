@@ -112,6 +112,10 @@ _BACKENDS: list[_BackendRecord] = []
 def register_auth_backend(backend: SupportsAuthenticate, *, priority: int = 100) -> None:
     """Register an authentication backend in priority order."""
 
+    for record in _BACKENDS:
+        if record.backend.__class__ is backend.__class__:
+            return
+
     _BACKENDS.append(_BackendRecord(priority=priority, backend=backend))
     _BACKENDS.sort(key=lambda record: record.priority)
 

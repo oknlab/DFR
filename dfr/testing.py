@@ -9,12 +9,19 @@ Example:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Callable, NamedTuple
+from typing import Any, NamedTuple
 
-import httpx
 import pytest
-from django.test import Client as DjangoClient
+
+try:  # optional runtime dependency for async test client
+    import httpx
+except Exception:  # pragma: no cover - environment-dependent dependency
+    httpx = None  # type: ignore[assignment]
+
+try:  # optional runtime dependency for sync Django test client
+    from django.test import Client as DjangoClient
+except Exception:  # pragma: no cover - environment-dependent dependency
+    DjangoClient = None  # type: ignore[assignment]
 
 from dfr.app import DFRApp
 from dfr.auth import _BACKENDS
@@ -38,18 +45,16 @@ class TestClients(NamedTuple):
     """Paired sync and async clients for DFR tests."""
 
     sync: "DFRTestClient"
-    async_client: httpx.AsyncClient
+    async_client: Any
 
 
 class DFRTestClient:
-    """Facade over Django test client for sync endpoint testing.
-
-    Args:
-        app: ASGI callable for parity with async client setup.
-    """
+    """Facade over Django test client for sync endpoint testing."""
 
     def __init__(self, app: Any) -> None:
         self._app = app
+        if DjangoClient is None:
+            raise RuntimeError("Django test client is unavailable. Install Django to use DFRTestClient.")
         self._client = DjangoClient()
 
     def get(self, path: str, **kwargs: Any) -> Any:
@@ -78,6 +83,8 @@ def create_test_clients(app: Any) -> TestClients:
     """Create paired sync/async clients for DFR test runs."""
 
     sync_client = DFRTestClient(app)
+    if httpx is None:
+        raise RuntimeError("httpx is unavailable. Install httpx to create async test clients.")
     async_client = httpx.AsyncClient(app=app, base_url="http://testserver")
     return TestClients(sync=sync_client, async_client=async_client)
 
@@ -85,6 +92,7 @@ def create_test_clients(app: Any) -> TestClients:
 def reset_app_state(app: Any) -> None:
     """Reset global singleton state for deterministic tests."""
 
+    _ = app
     registry = get_registry()
     registry._entries.clear()  # noqa: SLF001 - intentional internal cleanup for test isolation.
     registry._finalized = False  # noqa: SLF001 - intentional internal cleanup for test isolation.
@@ -112,12 +120,10 @@ def reset_request_context(request: Any) -> None:
 
 @pytest.fixture(scope="session")
 def dfr_app() -> Any:
-    """Session-scoped DFR ASGI app fixture.
+    """Session-scoped DFR ASGI app fixture."""
 
-    Note:
-        Async database tests should use ``@pytest.mark.django_db(transaction=True)``
-        so Django transaction handling remains compatible with async clients.
-    """
+    if DjangoClient is None:
+        pytest.skip("Django is not available in this environment.")
 
     app = DFRApp(django_settings_module="tests.settings")
     app.bootstrap()
@@ -133,8 +139,11 @@ def dfr_client(dfr_app: Any) -> DFRTestClient:
 
 
 @pytest.fixture(scope="function")
-async def dfr_async_client(dfr_app: Any) -> httpx.AsyncClient:
+async def dfr_async_client(dfr_app: Any) -> Any:
     """Function-scoped async test client fixture."""
+
+    if httpx is None:
+        pytest.skip("httpx is not available in this environment.")
 
     reset_app_state(dfr_app)
     client = httpx.AsyncClient(app=dfr_app, base_url="http://testserver")
