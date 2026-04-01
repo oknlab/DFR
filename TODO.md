@@ -42,7 +42,7 @@
 2. [~] Add **real Django URLResolver adapter** using Django resolver APIs (resolver loading + integration scaffold implemented; broader resolver parity pending).
 3. [~] Merge **FastAPI router ownership cache** with fallback Django adapter in dispatcher (ownership cache + FastAPI adapter fallback implemented; deeper FastAPI routing parity pending).
 4. [~] Add **ASGI middleware adapter layer** for real Django middleware compatibility (merged pipeline + adapter scaffold implemented; full Django middleware lifecycle parity pending).
-5. [~] Add **auth convergence**: backend-chain dependency scaffold implemented; full Django session/auth integration pending.
+5. [~] Add **auth convergence**: backend-chain + session-based dependency scaffolds implemented; full Django backend/session lifecycle parity pending.
 6. [~] Add **DRF-compatible permission/throttle/filter/pagination adapters** (baseline adapters implemented; feature parity pending).
 7. [~] Add **OpenAPI route introspection** from registered routes and dependency metadata (route introspection + dependency metadata export implemented; richer schema metadata pending).
 8. [~] Build **integration test project** (pytest-django) with end-to-end ASGI app checks (minimal Django URLResolver integration test scaffold added).

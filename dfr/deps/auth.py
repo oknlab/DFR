@@ -25,6 +25,26 @@ class DjangoAuthDependency:
         return None
 
 
+class DjangoSessionAuthDependency:
+    """Authenticate user from Django-like session storage."""
+
+    def __init__(self, user_loader: Callable[[Any], Any], session_key: str = "_auth_user_id") -> None:
+        self.user_loader = user_loader
+        self.session_key = session_key
+
+    async def __call__(self, request: Any) -> Any | None:
+        session = getattr(request, "session", None)
+        if session is None:
+            return None
+        user_id = session.get(self.session_key)
+        if user_id is None:
+            return None
+        user = self.user_loader(user_id)
+        if hasattr(user, "__await__"):
+            user = await user
+        return user
+
+
 class RequireAuthenticatedUser:
     """Ensure a user is available after auth backend evaluation."""
 
@@ -53,4 +73,4 @@ def current_user_dependency(*, required: bool = True) -> Depends:
     return Depends(_resolve)
 
 
-__all__ = ["DjangoAuthDependency", "RequireAuthenticatedUser", "current_user_dependency"]
+__all__ = ["DjangoAuthDependency", "DjangoSessionAuthDependency", "RequireAuthenticatedUser", "current_user_dependency"]
