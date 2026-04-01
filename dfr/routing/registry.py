@@ -16,6 +16,7 @@ class Route:
     path: str
     methods: tuple[str, ...]
     endpoint: Callable[..., Any]
+    dependencies: tuple[str, ...] = ()
 
 
 class RouteRegistry:
@@ -24,10 +25,21 @@ class RouteRegistry:
     def __init__(self) -> None:
         self._routes: list[Route] = []
 
-    def add(self, path: str, methods: list[str] | tuple[str, ...], endpoint: Callable[..., Any]) -> Route:
+    def add(
+        self,
+        path: str,
+        methods: list[str] | tuple[str, ...],
+        endpoint: Callable[..., Any],
+        dependencies: list[str] | tuple[str, ...] = (),
+    ) -> Route:
         if not path.startswith("/"):
             raise RoutingError(f"Route path must start with '/'. Got: {path!r}")
-        route = Route(path=path, methods=tuple(m.upper() for m in methods), endpoint=endpoint)
+        route = Route(
+            path=path,
+            methods=tuple(m.upper() for m in methods),
+            endpoint=endpoint,
+            dependencies=tuple(dependencies),
+        )
         self._routes.append(route)
         return route
 
@@ -38,13 +50,19 @@ class RouteRegistry:
         return len(self._routes)
 
 
-def route(path: str, methods: list[str] | tuple[str, ...] = ("GET",), *, registry: RouteRegistry | None = None):
+def route(
+    path: str,
+    methods: list[str] | tuple[str, ...] = ("GET",),
+    *,
+    registry: RouteRegistry | None = None,
+    dependencies: list[str] | tuple[str, ...] = (),
+):
     """Decorator that registers an endpoint in a route registry."""
 
     target_registry = registry if registry is not None else _default_registry
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        target_registry.add(path=path, methods=methods, endpoint=func)
+        target_registry.add(path=path, methods=methods, endpoint=func, dependencies=dependencies)
         return func
 
     return decorator

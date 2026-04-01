@@ -19,11 +19,17 @@ class DFR:
         self.registry = RouteRegistry()
         self.dispatcher = UnifiedDispatcher(self.registry)
 
-    def route(self, path: str, methods: list[str] | tuple[str, ...] = ("GET",)):
+    def route(
+        self,
+        path: str,
+        methods: list[str] | tuple[str, ...] = ("GET",),
+        *,
+        dependencies: list[str] | tuple[str, ...] = (),
+    ):
         """Register a route on this app instance."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            self.registry.add(path=path, methods=methods, endpoint=func)
+            self.registry.add(path=path, methods=methods, endpoint=func, dependencies=dependencies)
             return func
 
         return decorator

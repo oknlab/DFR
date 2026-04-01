@@ -21,10 +21,13 @@ class DFRSchemaGenerator:
         for route in registry:
             path_item = result.setdefault(route.path, {})
             for method in route.methods:
-                path_item[method.lower()] = {
+                operation = {
                     "summary": getattr(route.endpoint, "__name__", "handler"),
                     "responses": {"200": {"description": "Successful Response"}},
                 }
+                if route.dependencies:
+                    operation["x-dfr-dependencies"] = list(route.dependencies)
+                path_item[method.lower()] = operation
         return result
 
 
