@@ -20,3 +20,22 @@ def test_django_url_adapter_resolve() -> None:
     fn, kwargs = resolved
     assert fn is endpoint
     assert kwargs == {"slug": "hello"}
+
+
+def test_django_url_adapter_uses_injected_resolver() -> None:
+    class Match:
+        def __init__(self):
+            self.func = lambda **kwargs: kwargs
+            self.kwargs = {"pk": 9}
+            self.args = ()
+
+    class Resolver:
+        def resolve(self, _path):
+            return Match()
+
+    adapter = DjangoURLAdapter()
+    adapter.set_resolver(Resolver())
+
+    fn, kwargs = adapter.resolve("/anything/")
+    assert kwargs == {"pk": 9}
+    assert fn(**kwargs) == {"pk": 9}
