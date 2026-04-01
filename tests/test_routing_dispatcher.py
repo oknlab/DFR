@@ -78,3 +78,24 @@ def test_dispatch_django_adapter_fallback() -> None:
 
     assert messages[0]["status"] == 200
     assert json.loads(messages[1]["body"]) == {"id": 7}
+
+
+def test_dispatcher_route_ownership_cache() -> None:
+    registry = RouteRegistry()
+
+    def sync_handler(_scope):
+        return {"cached": True}
+
+    registry.add("/cached", ["GET"], sync_handler)
+    dispatcher = UnifiedDispatcher(registry)
+
+    messages = []
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        messages.append(message)
+
+    asyncio.run(dispatcher({"type": "http", "path": "/cached", "method": "GET"}, receive, send))
+    assert dispatcher._route_ownership["/cached"] == "registry"

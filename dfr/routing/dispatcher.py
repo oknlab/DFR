@@ -18,6 +18,7 @@ class UnifiedDispatcher:
     def __init__(self, registry: RouteRegistry, django_adapter: DjangoURLAdapter | None = None) -> None:
         self.registry = registry
         self.django_adapter = django_adapter
+        self._route_ownership: dict[str, str] = {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope.get("type") != "http":
@@ -27,13 +28,16 @@ class UnifiedDispatcher:
         path = str(scope.get("path", ""))
         method = str(scope.get("method", "GET")).upper()
 
-        for route in self.registry:
-            if route.path == path and method in route.methods:
-                result = await self._invoke(route.endpoint, scope)
+        owner = self._route_ownership.get(path)
+        if owner == "registry":
+            resolved = self._resolve_registry(path, method)
+            if resolved is not None:
+                endpoint, kwargs = resolved
+                result = await self._invoke(endpoint, scope, **kwargs)
                 await self._send_json(send, 200, result)
                 return
 
-        if self.django_adapter is not None:
+        if owner == "django" and self.django_adapter is not None:
             resolved = self.django_adapter.resolve(path)
             if resolved is not None:
                 endpoint, kwargs = resolved
@@ -41,7 +45,30 @@ class UnifiedDispatcher:
                 await self._send_json(send, 200, result)
                 return
 
+        resolved = self._resolve_registry(path, method)
+        if resolved is not None:
+            endpoint, kwargs = resolved
+            self._route_ownership[path] = "registry"
+            result = await self._invoke(endpoint, scope, **kwargs)
+            await self._send_json(send, 200, result)
+            return
+
+        if self.django_adapter is not None:
+            resolved = self.django_adapter.resolve(path)
+            if resolved is not None:
+                endpoint, kwargs = resolved
+                self._route_ownership[path] = "django"
+                result = await self._invoke(endpoint, scope, **kwargs)
+                await self._send_json(send, 200, result)
+                return
+
         await self._send_plain(send, 404, "Not Found")
+
+    def _resolve_registry(self, path: str, method: str) -> tuple[Any, dict[str, Any]] | None:
+        for route in self.registry:
+            if route.path == path and method in route.methods:
+                return route.endpoint, {}
+        return None
 
     async def _invoke(self, endpoint: Any, scope: Scope, **kwargs: Any) -> Any:
         if inspect.iscoroutinefunction(endpoint):
