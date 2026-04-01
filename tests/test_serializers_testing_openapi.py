@@ -47,6 +47,7 @@ def test_openapi_from_app_registry() -> None:
 
     @app.route("/items", methods=["GET", "POST"], dependencies=["auth", "db"])
     async def items(_scope):
+        """List items"""
         return {"ok": True}
 
     schema = app.openapi_schema(title="DFR", version="1.0.0")
@@ -54,3 +55,5 @@ def test_openapi_from_app_registry() -> None:
     assert "get" in schema["paths"]["/items"]
     assert "post" in schema["paths"]["/items"]
     assert schema["paths"]["/items"]["get"]["x-dfr-dependencies"] == ["auth", "db"]
+    assert schema["paths"]["/items"]["get"]["operationId"] == "items_get"
+    assert schema["paths"]["/items"]["get"]["summary"] == "List items"

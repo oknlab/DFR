@@ -21,8 +21,10 @@ class DFRSchemaGenerator:
         for route in registry:
             path_item = result.setdefault(route.path, {})
             for method in route.methods:
+                doc = (getattr(route.endpoint, "__doc__", "") or "").strip()
                 operation = {
-                    "summary": getattr(route.endpoint, "__name__", "handler"),
+                    "operationId": f"{route.endpoint.__name__}_{method.lower()}",
+                    "summary": doc.splitlines()[0] if doc else getattr(route.endpoint, "__name__", "handler"),
                     "responses": {"200": {"description": "Successful Response"}},
                 }
                 if route.dependencies:
