@@ -7,6 +7,7 @@ from typing import Any
 
 from dfr.conf import DFRConfig
 from dfr.routing import RouteRegistry, UnifiedDispatcher
+from dfr.types import Receive, Scope, Send
 
 
 class DFR:
@@ -26,7 +27,7 @@ class DFR:
 
         return decorator
 
-    async def __call__(self, scope, receive, send) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         await self.dispatcher(scope, receive, send)
 
 
