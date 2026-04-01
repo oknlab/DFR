@@ -46,7 +46,7 @@ def test_openapi_from_app_registry() -> None:
     app = DFR(DFRConfig(django_settings_module="project.settings"))
 
     @app.route("/items", methods=["GET", "POST"], dependencies=["auth", "db"])
-    async def items(_scope):
+    async def items(_scope) -> dict:
         """List items"""
         return {"ok": True}
 
@@ -57,3 +57,4 @@ def test_openapi_from_app_registry() -> None:
     assert schema["paths"]["/items"]["get"]["x-dfr-dependencies"] == ["auth", "db"]
     assert schema["paths"]["/items"]["get"]["operationId"] == "items_get"
     assert schema["paths"]["/items"]["get"]["summary"] == "List items"
+    assert schema["paths"]["/items"]["get"]["x-dfr-return-type"] == "dict"

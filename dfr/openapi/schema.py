@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 
@@ -22,11 +23,15 @@ class DFRSchemaGenerator:
             path_item = result.setdefault(route.path, {})
             for method in route.methods:
                 doc = (getattr(route.endpoint, "__doc__", "") or "").strip()
+                signature = inspect.signature(route.endpoint)
+                return_annotation = signature.return_annotation
                 operation = {
                     "operationId": f"{route.endpoint.__name__}_{method.lower()}",
                     "summary": doc.splitlines()[0] if doc else getattr(route.endpoint, "__name__", "handler"),
                     "responses": {"200": {"description": "Successful Response"}},
                 }
+                if return_annotation is not inspect.Signature.empty:
+                    operation["x-dfr-return-type"] = getattr(return_annotation, "__name__", str(return_annotation))
                 if route.dependencies:
                     operation["x-dfr-dependencies"] = list(route.dependencies)
                 path_item[method.lower()] = operation
