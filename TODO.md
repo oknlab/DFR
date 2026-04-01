@@ -38,7 +38,7 @@
 
 ## Continuation List (Next Todo)
 
-1. [ ] Replace serializer scaffold with full **Pydantic v2 model integration** when dependency is guaranteed in runtime.
+1. [~] Replace serializer scaffold with full **Pydantic v2 model integration** (implemented with runtime guard; full execution requires pydantic availability).
 2. [ ] Add **real Django URLResolver adapter** using Django resolver APIs (instead of lightweight stub).
 3. [ ] Merge **FastAPI router ownership cache** with fallback Django adapter in dispatcher.
 4. [ ] Add **ASGI middleware adapter layer** for real Django middleware compatibility.
