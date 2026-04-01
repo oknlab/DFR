@@ -6,7 +6,7 @@ from typing import Any
 
 
 class DFRSchemaGenerator:
-    """Very small OpenAPI 3.1 schema scaffold generator."""
+    """OpenAPI 3.1 schema scaffold generator with route introspection."""
 
     def generate(self, *, title: str, version: str, paths: dict[str, Any] | None = None) -> dict[str, Any]:
         return {
@@ -14,6 +14,18 @@ class DFRSchemaGenerator:
             "info": {"title": title, "version": version},
             "paths": paths or {},
         }
+
+    def paths_from_registry(self, registry) -> dict[str, Any]:
+        """Build OpenAPI `paths` from a DFR route registry."""
+        result: dict[str, Any] = {}
+        for route in registry:
+            path_item = result.setdefault(route.path, {})
+            for method in route.methods:
+                path_item[method.lower()] = {
+                    "summary": getattr(route.endpoint, "__name__", "handler"),
+                    "responses": {"200": {"description": "Successful Response"}},
+                }
+        return result
 
 
 class DFRSampleGenerator:

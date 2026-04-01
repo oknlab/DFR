@@ -36,3 +36,20 @@ def test_openapi_schema_generator() -> None:
 def test_testing_fixture_client() -> None:
     client = create_test_client()
     assert client is not None
+
+
+from dfr.app import DFR
+from dfr.conf import DFRConfig
+
+
+def test_openapi_from_app_registry() -> None:
+    app = DFR(DFRConfig(django_settings_module="project.settings"))
+
+    @app.route("/items", methods=["GET", "POST"])
+    async def items(_scope):
+        return {"ok": True}
+
+    schema = app.openapi_schema(title="DFR", version="1.0.0")
+    assert "/items" in schema["paths"]
+    assert "get" in schema["paths"]["/items"]
+    assert "post" in schema["paths"]["/items"]

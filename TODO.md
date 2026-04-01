@@ -44,5 +44,5 @@
 4. [ ] Add **ASGI middleware adapter layer** for real Django middleware compatibility.
 5. [~] Add **auth convergence**: backend-chain dependency scaffold implemented; full Django session/auth integration pending.
 6. [~] Add **DRF-compatible permission/throttle/filter/pagination adapters** (baseline adapters implemented; feature parity pending).
-7. [ ] Add **OpenAPI route introspection** from registered routes and dependency metadata.
+7. [~] Add **OpenAPI route introspection** from registered routes and dependency metadata (route registry introspection implemented; dependency metadata pending).
 8. [ ] Build **integration test project** (pytest-django) with end-to-end ASGI app checks.
