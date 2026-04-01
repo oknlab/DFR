@@ -42,7 +42,7 @@
 2. [ ] Add **real Django URLResolver adapter** using Django resolver APIs (instead of lightweight stub).
 3. [ ] Merge **FastAPI router ownership cache** with fallback Django adapter in dispatcher.
 4. [ ] Add **ASGI middleware adapter layer** for real Django middleware compatibility.
-5. [ ] Add **auth convergence**: Django auth/session backend usable as dependency in async routes.
+5. [~] Add **auth convergence**: backend-chain dependency scaffold implemented; full Django session/auth integration pending.
 6. [ ] Add **DRF-compatible permission/throttle/filter/pagination adapters**.
 7. [ ] Add **OpenAPI route introspection** from registered routes and dependency metadata.
 8. [ ] Build **integration test project** (pytest-django) with end-to-end ASGI app checks.
