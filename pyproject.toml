@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dfr-framework"
+version = "0.1.0"
+description = "DFR: a unified hybrid framework combining Django, DRF, and FastAPI patterns"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "DFR Contributors" }]
+dependencies = [
+  "django>=5.0,<6.0",
+  "djangorestframework>=3.15,<4.0",
+  "fastapi>=0.115,<1.0",
+  "pydantic>=2.8,<3.0",
+  "starlette>=0.37,<1.0",
+  "asgiref>=3.8",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-django>=4.8",
+  "httpx>=0.27",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["dfr"]
