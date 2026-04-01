@@ -1,19 +1,48 @@
 # DFR Todo Status
 
-## Completed Foundation
-- [x] Project scaffolding (`pyproject.toml`, package layout, tests bootstrap)
-- [x] Core ASGI app (`dfr.app.DFR`)
-- [x] Routing primitives and dispatcher (`dfr.routing`)
-- [x] Async boundary helpers (`dfr.async_`)
-- [x] Dependency primitives (`dfr.deps.core`)
-- [x] Middleware stack, permissions, throttling basics
-- [x] Serializer bridge, OpenAPI and testing client scaffolds
-- [x] Pagination, filtering, DB backend/admin compatibility stubs
+## Phase Completion Snapshot
 
-## Remaining Integration Work
-- [ ] Django URLResolver adapter and converter compatibility with `path()`/`re_path()`
-- [ ] FastAPI router interoperability and OpenAPI route merging
-- [ ] Full Pydantic v2-backed serializer validation model
-- [ ] Django auth/session middleware bridge for ASGI scopes
-- [ ] DRF-compatible permissions/throttling/filtering/pagination adapters
-- [ ] End-to-end integration tests against real Django test project
+### P0 — Core Runtime
+- [x] Project scaffolding (`pyproject.toml`, package layout, CI, docs)
+- [x] `dfr.app` ASGI application shell (`DFR`)
+- [x] `dfr.async_` boundary helpers (`ORMExecutor`, `sync_to_async`, `async_to_sync`)
+- [x] `dfr.routing.registry` route registration primitives
+- [x] `dfr.routing.dispatcher` unified dispatcher (registry + Django adapter fallback)
+- [x] `dfr.routing.converters` Django path converter support
+- [x] `dfr.routing.django_urls` lightweight URL adapter
+
+### P1 — Data & DI Foundations
+- [x] `dfr.serializers` scaffold (`DFRSchema`, field metadata, nested resolver)
+- [x] `dfr.deps.core` dependency container and caching
+- [x] `dfr.deps.auth` current-user dependency helper
+- [x] `dfr.deps.db` transaction wrapper helper
+- [x] `dfr.deps.pagination` page params helper
+
+### P2 — Cross-Cutting Runtime
+- [x] `dfr.middleware` stack and entry model
+- [x] `dfr.permissions` base + `AllowAny`
+- [x] `dfr.throttling` in-memory throttle primitive
+
+### P3 — Developer Experience
+- [x] `dfr.testing` test client + fixture helper
+- [x] `dfr.openapi` schema/sample generator + Django serializer stub
+- [x] Baseline tests across routing/deps/middleware/serializers/pagination/filtering
+
+### P4 — Ecosystem Bridges (Scaffolded)
+- [x] `dfr.pagination` page-number implementation
+- [x] `dfr.filtering` attribute-based filter helper
+- [x] `dfr.db.backends.postgresql` backend config facade
+- [x] `dfr.admin.compat` registration helper
+
+---
+
+## Continuation List (Next Todo)
+
+1. [ ] Replace serializer scaffold with full **Pydantic v2 model integration** when dependency is guaranteed in runtime.
+2. [ ] Add **real Django URLResolver adapter** using Django resolver APIs (instead of lightweight stub).
+3. [ ] Merge **FastAPI router ownership cache** with fallback Django adapter in dispatcher.
+4. [ ] Add **ASGI middleware adapter layer** for real Django middleware compatibility.
+5. [ ] Add **auth convergence**: Django auth/session backend usable as dependency in async routes.
+6. [ ] Add **DRF-compatible permission/throttle/filter/pagination adapters**.
+7. [ ] Add **OpenAPI route introspection** from registered routes and dependency metadata.
+8. [ ] Build **integration test project** (pytest-django) with end-to-end ASGI app checks.
