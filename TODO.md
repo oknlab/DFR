@@ -40,7 +40,7 @@
 
 1. [~] Replace serializer scaffold with full **Pydantic v2 model integration** (implemented with runtime guard; full execution requires pydantic availability).
 2. [~] Add **real Django URLResolver adapter** using Django resolver APIs (resolver loading + integration scaffold implemented; broader resolver parity pending).
-3. [~] Merge **FastAPI router ownership cache** with fallback Django adapter in dispatcher (ownership cache + fallback path implemented; FastAPI router binding pending).
+3. [~] Merge **FastAPI router ownership cache** with fallback Django adapter in dispatcher (ownership cache + FastAPI adapter fallback implemented; deeper FastAPI routing parity pending).
 4. [~] Add **ASGI middleware adapter layer** for real Django middleware compatibility (merged pipeline + adapter scaffold implemented; full Django middleware lifecycle parity pending).
 5. [~] Add **auth convergence**: backend-chain dependency scaffold implemented; full Django session/auth integration pending.
 6. [~] Add **DRF-compatible permission/throttle/filter/pagination adapters** (baseline adapters implemented; feature parity pending).

@@ -7,7 +7,7 @@ from typing import Any
 
 from dfr.conf import DFRConfig
 from dfr.openapi import DFRSchemaGenerator
-from dfr.routing import RouteRegistry, UnifiedDispatcher
+from dfr.routing import FastAPIRouterAdapter, RouteRegistry, UnifiedDispatcher
 from dfr.types import Receive, Scope, Send
 
 
@@ -17,7 +17,8 @@ class DFR:
     def __init__(self, config: DFRConfig) -> None:
         self.config = config
         self.registry = RouteRegistry()
-        self.dispatcher = UnifiedDispatcher(self.registry)
+        self.fastapi_adapter = FastAPIRouterAdapter()
+        self.dispatcher = UnifiedDispatcher(self.registry, fastapi_adapter=self.fastapi_adapter)
 
     def route(
         self,
@@ -34,6 +35,10 @@ class DFR:
 
         return decorator
 
+
+    def include_fastapi_router(self, router: Any) -> None:
+        """Attach a FastAPI router-like object for fallback dispatch."""
+        self.fastapi_adapter.attach_router(router)
 
     def openapi_schema(self, *, title: str = "DFR API", version: str = "0.1.0") -> dict[str, Any]:
         """Generate OpenAPI schema by introspecting registered routes."""

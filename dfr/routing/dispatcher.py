@@ -8,6 +8,7 @@ from typing import Any
 
 from dfr.async_ import sync_to_async
 from dfr.routing.django_urls import DjangoURLAdapter
+from dfr.routing.fastapi_router import FastAPIRouterAdapter
 from dfr.routing.registry import RouteRegistry
 from dfr.types import Receive, Scope, Send
 
@@ -15,9 +16,15 @@ from dfr.types import Receive, Scope, Send
 class UnifiedDispatcher:
     """Dispatch requests to sync or async handlers from route registry + Django adapter."""
 
-    def __init__(self, registry: RouteRegistry, django_adapter: DjangoURLAdapter | None = None) -> None:
+    def __init__(
+        self,
+        registry: RouteRegistry,
+        django_adapter: DjangoURLAdapter | None = None,
+        fastapi_adapter: FastAPIRouterAdapter | None = None,
+    ) -> None:
         self.registry = registry
         self.django_adapter = django_adapter
+        self.fastapi_adapter = fastapi_adapter
         self._route_ownership: dict[str, str] = {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -31,6 +38,14 @@ class UnifiedDispatcher:
         owner = self._route_ownership.get(path)
         if owner == "registry":
             resolved = self._resolve_registry(path, method)
+            if resolved is not None:
+                endpoint, kwargs = resolved
+                result = await self._invoke(endpoint, scope, **kwargs)
+                await self._send_json(send, 200, result)
+                return
+
+        if owner == "fastapi" and self.fastapi_adapter is not None:
+            resolved = self.fastapi_adapter.resolve(path, method)
             if resolved is not None:
                 endpoint, kwargs = resolved
                 result = await self._invoke(endpoint, scope, **kwargs)
@@ -52,6 +67,15 @@ class UnifiedDispatcher:
             result = await self._invoke(endpoint, scope, **kwargs)
             await self._send_json(send, 200, result)
             return
+
+        if self.fastapi_adapter is not None:
+            resolved = self.fastapi_adapter.resolve(path, method)
+            if resolved is not None:
+                endpoint, kwargs = resolved
+                self._route_ownership[path] = "fastapi"
+                result = await self._invoke(endpoint, scope, **kwargs)
+                await self._send_json(send, 200, result)
+                return
 
         if self.django_adapter is not None:
             resolved = self.django_adapter.resolve(path)
