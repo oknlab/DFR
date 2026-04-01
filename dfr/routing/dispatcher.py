@@ -7,15 +7,17 @@ import json
 from typing import Any
 
 from dfr.async_ import sync_to_async
+from dfr.routing.django_urls import DjangoURLAdapter
 from dfr.routing.registry import RouteRegistry
 from dfr.types import Receive, Scope, Send
 
 
 class UnifiedDispatcher:
-    """Dispatch requests to sync or async handlers from a single registry."""
+    """Dispatch requests to sync or async handlers from route registry + Django adapter."""
 
-    def __init__(self, registry: RouteRegistry) -> None:
+    def __init__(self, registry: RouteRegistry, django_adapter: DjangoURLAdapter | None = None) -> None:
         self.registry = registry
+        self.django_adapter = django_adapter
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope.get("type") != "http":
@@ -31,12 +33,20 @@ class UnifiedDispatcher:
                 await self._send_json(send, 200, result)
                 return
 
+        if self.django_adapter is not None:
+            resolved = self.django_adapter.resolve(path)
+            if resolved is not None:
+                endpoint, kwargs = resolved
+                result = await self._invoke(endpoint, scope, **kwargs)
+                await self._send_json(send, 200, result)
+                return
+
         await self._send_plain(send, 404, "Not Found")
 
-    async def _invoke(self, endpoint: Any, scope: Scope) -> Any:
+    async def _invoke(self, endpoint: Any, scope: Scope, **kwargs: Any) -> Any:
         if inspect.iscoroutinefunction(endpoint):
-            return await endpoint(scope)
-        return await sync_to_async(endpoint, scope)
+            return await endpoint(scope, **kwargs)
+        return await sync_to_async(endpoint, scope, **kwargs)
 
     async def _send_json(self, send: Send, status_code: int, payload: Any) -> None:
         body = json.dumps(payload).encode("utf-8")

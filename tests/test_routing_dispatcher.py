@@ -53,3 +53,28 @@ def test_dispatch_sync_route() -> None:
 def test_include_preserves_empty_registry() -> None:
     empty = RouteRegistry()
     assert include(empty) is empty
+
+
+def test_dispatch_django_adapter_fallback() -> None:
+    from dfr.routing import DjangoURLAdapter
+
+    adapter = DjangoURLAdapter()
+
+    def detail(_scope, id):
+        return {"id": int(id)}
+
+    adapter.add("/users/<int:id>/", detail)
+    dispatcher = UnifiedDispatcher(RouteRegistry(), django_adapter=adapter)
+
+    messages = []
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        messages.append(message)
+
+    asyncio.run(dispatcher({"type": "http", "path": "/users/7/", "method": "GET"}, receive, send))
+
+    assert messages[0]["status"] == 200
+    assert json.loads(messages[1]["body"]) == {"id": 7}
