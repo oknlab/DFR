@@ -1,0 +1,3 @@
+fastapi==0.115.12
+uvicorn[standard]==0.30.6
+scrapling==0.2.97
