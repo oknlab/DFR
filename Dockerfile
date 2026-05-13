@@ -7,9 +7,9 @@ FROM python:3.12-slim
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git redis-server && rm -rf /var/lib/apt/lists/*
 
-# clone both repos as requested
+# clone Firecrawl + Scrapling as requested
 RUN git clone --depth 1 https://github.com/firecrawl/firecrawl /opt/firecrawl && \
     git clone --depth 1 https://github.com/D4Vinci/Scrapling /opt/Scrapling
 

@@ -1,9 +1,13 @@
 import asyncio
+import hashlib
+import json
 import os
 import re
+import time
 from typing import Any
 
 import httpx
+import redis.asyncio as redis
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
@@ -12,25 +16,26 @@ try:
 except Exception:
     Fetcher = None
 
-app = FastAPI(title="Search -> Scrape -> Crawl JSON API", version="0.2.0")
+app = FastAPI(title="Distributed Web Data OS", version="0.3.0")
 
 GO_FETCH_URL = os.getenv("GO_FETCH_URL", "http://127.0.0.1:8081/fetch")
 FIRECRAWL_API_URL = os.getenv("FIRECRAWL_API_URL", "http://127.0.0.1:3002/v1")
 FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY", "")
+APIFY_TOKEN = os.getenv("APIFY_TOKEN", "")
+REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+CACHE_TTL_SEC = int(os.getenv("CACHE_TTL_SEC", "900"))
+
+rds = redis.from_url(REDIS_URL, decode_responses=True)
 
 
-class SearchRequest(BaseModel):
+class PipelineRequest(BaseModel):
     query: str = ""
     seed_urls: list[str] = Field(default_factory=list)
     max_urls: int = 10
     use_firecrawl: bool = True
+    use_go_crawl: bool = True
     use_scrapling: bool = True
-    use_go_fetch: bool = True
-
-
-class CrawlRequest(BaseModel):
-    urls: list[str]
-    concurrency: int = 8
+    use_apify: bool = False
 
 
 def _strip_html(text: str) -> str:
@@ -40,23 +45,51 @@ def _strip_html(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _cache_key(payload: dict[str, Any]) -> str:
+    raw = json.dumps(payload, sort_keys=True).encode("utf-8")
+    return "pipeline:" + hashlib.sha256(raw).hexdigest()
+
+
 async def firecrawl_search(query: str, limit: int) -> dict[str, Any]:
     url = f"{FIRECRAWL_API_URL}/search"
     headers = {"Content-Type": "application/json"}
     if FIRECRAWL_API_KEY:
         headers["Authorization"] = f"Bearer {FIRECRAWL_API_KEY}"
 
-    payload = {"query": query, "limit": limit}
     async with httpx.AsyncClient(timeout=30) as client:
         try:
-            r = await client.post(url, json=payload, headers=headers)
-            data = r.json() if r.text else {}
-            return {"provider": "firecrawl", "ok": r.is_success, "status": r.status_code, "data": data}
+            res = await client.post(url, json={"query": query, "limit": limit}, headers=headers)
+            return {"provider": "firecrawl", "ok": res.is_success, "status": res.status_code, "data": res.json()}
         except Exception as exc:
             return {"provider": "firecrawl", "ok": False, "error": str(exc)}
 
 
-async def scrapling_fetch(url: str) -> dict[str, Any]:
+async def apify_search(query: str, limit: int) -> dict[str, Any]:
+    if not APIFY_TOKEN:
+        return {"provider": "apify", "ok": False, "error": "missing APIFY_TOKEN"}
+    # Lightweight JSON-first search using Apify datasets API pattern
+    url = "https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items"
+    params = {"token": APIFY_TOKEN, "format": "json", "clean": "true"}
+    payload = {"queries": query, "maxPagesPerQuery": 1, "resultsPerPage": max(1, min(limit, 10))}
+    async with httpx.AsyncClient(timeout=45) as client:
+        try:
+            res = await client.post(url, params=params, json=payload)
+            data = res.json() if res.text else []
+            return {"provider": "apify", "ok": res.is_success, "status": res.status_code, "data": data}
+        except Exception as exc:
+            return {"provider": "apify", "ok": False, "error": str(exc)}
+
+
+async def go_crawl(urls: list[str]) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=45) as client:
+        try:
+            res = await client.post(GO_FETCH_URL, json={"urls": urls})
+            return {"provider": "go-crawler", "ok": res.is_success, "status": res.status_code, "data": res.json()}
+        except Exception as exc:
+            return {"provider": "go-crawler", "ok": False, "error": str(exc)}
+
+
+async def scrapling_scrape(url: str) -> dict[str, Any]:
     if Fetcher is None:
         return {"url": url, "ok": False, "error": "scrapling unavailable"}
 
@@ -71,47 +104,63 @@ async def scrapling_fetch(url: str) -> dict[str, Any]:
     return await asyncio.to_thread(_run)
 
 
-async def go_fetch(urls: list[str]) -> dict[str, Any]:
-    async with httpx.AsyncClient(timeout=30) as client:
-        try:
-            r = await client.post(GO_FETCH_URL, json={"urls": urls})
-            return {"provider": "go-fetch", "ok": r.is_success, "status": r.status_code, "data": r.json()}
-        except Exception as exc:
-            return {"provider": "go-fetch", "ok": False, "error": str(exc)}
-
-
 @app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+async def health() -> dict[str, Any]:
+    try:
+        pong = await rds.ping()
+    except Exception:
+        pong = False
+    return {"status": "ok", "redis": bool(pong)}
 
 
-@app.post("/crawl")
-async def crawl(req: CrawlRequest) -> dict[str, Any]:
-    sem = asyncio.Semaphore(max(1, req.concurrency))
+@app.post("/pipeline")
+async def pipeline(req: PipelineRequest) -> dict[str, Any]:
+    t0 = time.time()
+    payload = req.model_dump()
+    ck = _cache_key(payload)
 
-    async def one(u: str) -> dict[str, Any]:
-        async with sem:
-            return await scrapling_fetch(u)
+    cached = await rds.get(ck)
+    if cached:
+        data = json.loads(cached)
+        data["cache"] = "hit"
+        return data
 
-    results = await asyncio.gather(*(one(u) for u in req.urls))
-    return {"stage": "crawl", "count": len(results), "results": results}
+    # 1) SEARCH
+    search_stage: dict[str, Any] = {}
+    if req.use_firecrawl and req.query:
+        search_stage["firecrawl"] = await firecrawl_search(req.query, req.max_urls)
+    if req.use_apify and req.query:
+        search_stage["apify"] = await apify_search(req.query, req.max_urls)
 
+    discovered_urls = list(req.seed_urls)
+    fc_data = search_stage.get("firecrawl", {}).get("data", {})
+    if isinstance(fc_data, dict):
+        for item in fc_data.get("data", [])[: req.max_urls]:
+            u = item.get("url")
+            if isinstance(u, str):
+                discovered_urls.append(u)
 
-@app.post("/search")
-async def search(req: SearchRequest) -> dict[str, Any]:
-    urls = req.seed_urls[: req.max_urls]
+    discovered_urls = list(dict.fromkeys(discovered_urls))[: req.max_urls]
 
-    firecrawl_task = firecrawl_search(req.query, req.max_urls) if req.use_firecrawl and req.query else None
-    scrapling_task = asyncio.gather(*(scrapling_fetch(u) for u in urls)) if req.use_scrapling and urls else None
-    go_task = go_fetch(urls) if req.use_go_fetch and urls else None
+    # 2) CRAWL (Go)
+    crawl_stage: dict[str, Any] = {}
+    if req.use_go_crawl and discovered_urls:
+        crawl_stage = await go_crawl(discovered_urls)
 
-    out: dict[str, Any] = {"stage": "search", "query": req.query, "pipeline": {}}
+    # 3) SCRAPE (Scrapling)
+    scrape_stage: list[dict[str, Any]] = []
+    if req.use_scrapling and discovered_urls:
+        scrape_stage = await asyncio.gather(*(scrapling_scrape(u) for u in discovered_urls))
 
-    if firecrawl_task:
-        out["pipeline"]["search"] = await firecrawl_task
-    if scrapling_task:
-        out["pipeline"]["scrape"] = await scrapling_task
-    if go_task:
-        out["pipeline"]["fetch"] = await go_task
+    result = {
+        "product": "distributed-web-data-os",
+        "query": req.query,
+        "stages": {"search": search_stage, "crawl": crawl_stage, "scrape": scrape_stage},
+        "urls": discovered_urls,
+        "cache": "miss",
+        "latency_ms": int((time.time() - t0) * 1000),
+    }
 
-    return out
+    await rds.setex(ck, CACHE_TTL_SEC, json.dumps(result))
+    await rds.lpush("pipeline:jobs", json.dumps({"query": req.query, "ts": int(time.time())}))
+    return result
