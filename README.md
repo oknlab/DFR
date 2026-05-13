@@ -1,23 +1,23 @@
-# Distributed Web Data OS (Render-ready)
+# Mini Scrapling -> JSON API
 
-If previous build didn't work, this version fixes runtime issues and uses `PORT` env required by Render.
-
-Pipeline: **search -> crawling -> scraping -> JSON API**
+Simple, working platform for scraping data to JSON using Scrapling.
 
 ## Endpoints
-- `POST /pipeline`
 - `GET /health`
-- `GET /openapi.json`
-- `GET /ui`
+- `POST /scrape`
+- `POST /crawl`
 
-## Works without Firecrawl
-You can run with only `seed_urls` and `use_firecrawl:false`.
-
-## Example
+## Request examples
+### `/scrape`
 ```json
-{"query":"","seed_urls":["https://example.com","https://example.org"],"max_urls":5,"use_firecrawl":false,"use_apify":false}
+{"url":"https://example.com"}
 ```
 
-## Render
-- Docker deploy
-- Service port comes from `PORT` env (handled by app)
+### `/crawl`
+```json
+{"urls":["https://example.com","https://example.org"],"concurrency":5}
+```
+
+## Run (Docker)
+- Render free compatible (uses `$PORT`)
+- Deploy this repository with Docker runtime.

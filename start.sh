@@ -1,4 +1,3 @@
 #!/usr/bin/env bash
 set -euo pipefail
-redis-server --save '' --appendonly no --daemonize yes
-exec ./web-data-os
+exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-10000}"
