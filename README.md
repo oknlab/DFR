@@ -1,25 +1,26 @@
-# Hybrid Web Search API (Firecrawl + Scrapling + Go)
+# Search -> Scrape -> Crawl JSON API (Firecrawl + Scrapling + Go)
 
-A fast API that combines:
-- **Firecrawl** for high-quality extraction and crawl jobs.
-- **Scrapling** for direct scraping fallback.
-- A **Go fetch microservice** for concurrent low-latency page fetching.
+This project is a platform pipeline:
+1. **Search** (Firecrawl API endpoint, self-host supported)
+2. **Scrape** (Scrapling)
+3. **Crawl/Fetch** (Go concurrent fetcher)
+4. Return merged **JSON API** response
 
-Designed to run on **Render free tier** using a single `Dockerfile`.
+## No `FIRECRAWL_API_KEY` required
+- By default this app calls local Firecrawl API URL: `http://127.0.0.1:3002/v1`.
+- If your Firecrawl server requires auth, set `FIRECRAWL_API_KEY`.
+- If auth is disabled, leave it empty.
 
-## Features
-- `POST /search` (Python/FastAPI): merge Firecrawl + Scrapling + Go fetch results.
-- `POST /crawl` (Python/FastAPI): crawl a list of URLs concurrently.
-- `POST /fetch` (Go): fast concurrent fetch + lightweight text extraction.
+## Endpoints
+- `POST /search` : pipeline orchestration
+- `POST /crawl`  : scrape/crawl URLs concurrently
+- `GET /health`
 
-## API
-
-### `POST /search`
-Request:
+## Example `/search`
 ```json
 {
-  "query": "best golang scraping libraries",
-  "urls": ["https://example.com"],
+  "query": "python golang web crawling",
+  "seed_urls": ["https://example.com", "https://example.org"],
   "max_urls": 5,
   "use_firecrawl": true,
   "use_scrapling": true,
@@ -27,34 +28,5 @@ Request:
 }
 ```
 
-### `POST /crawl`
-Request:
-```json
-{
-  "urls": ["https://example.com", "https://example.org"],
-  "concurrency": 8,
-  "timeout_sec": 12
-}
-```
-
-## Environment Variables
-- `PORT` (default `10000`) - Render web port.
-- `GO_FETCH_URL` (default `http://127.0.0.1:8081/fetch`) - Go service endpoint.
-- `FIRECRAWL_API_KEY` (optional) - enables Firecrawl calls.
-
-## Local Run
-```bash
-docker build -t hybrid-search .
-docker run --rm -p 10000:10000 \
-  -e PORT=10000 \
-  -e FIRECRAWL_API_KEY=your_key \
-  hybrid-search
-```
-
-## Render
-1. Create new **Web Service** from this repo.
-2. Choose **Docker** runtime.
-3. Set optional env var: `FIRECRAWL_API_KEY`.
-4. Deploy.
-
-Render will expose the app on `$PORT`, handled by FastAPI.
+## Render free deploy
+Use the included Dockerfile. It runs FastAPI on `$PORT` and Go service on `8081`.

@@ -6,6 +6,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags='-s -w' -o /out/go-fetch ./main.g
 FROM python:3.12-slim
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
+# clone both repos as requested
+RUN git clone --depth 1 https://github.com/firecrawl/firecrawl /opt/firecrawl && \
+    git clone --depth 1 https://github.com/D4Vinci/Scrapling /opt/Scrapling
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
