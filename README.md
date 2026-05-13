@@ -1,15 +1,8 @@
-# Distributed Web Data OS (All-in-one, Render Free)
+# Distributed Web Data OS (Render-ready)
 
-Pipeline: **search -> crawling -> scraping -> JSON API**.
+If previous build didn't work, this version fixes runtime issues and uses `PORT` env required by Render.
 
-Built with:
-- Go (fast API + crawler)
-- Redis (cache + queue)
-- OpenAPI endpoint (`/openapi.json`)
-- Simple UI (`/ui`)
-- Firecrawl integration (search discovery)
-- Apify token support flag
-- Firecrawl + Scrapling repos cloned in Docker image
+Pipeline: **search -> crawling -> scraping -> JSON API**
 
 ## Endpoints
 - `POST /pipeline`
@@ -17,10 +10,14 @@ Built with:
 - `GET /openapi.json`
 - `GET /ui`
 
-## Run on Render
-Deploy with Docker. Exposed port is `10000`.
+## Works without Firecrawl
+You can run with only `seed_urls` and `use_firecrawl:false`.
 
-## Example body
+## Example
 ```json
-{"query":"ai agents","seed_urls":["https://example.com"],"max_urls":5,"use_firecrawl":true,"use_apify":false}
+{"query":"","seed_urls":["https://example.com","https://example.org"],"max_urls":5,"use_firecrawl":false,"use_apify":false}
 ```
+
+## Render
+- Docker deploy
+- Service port comes from `PORT` env (handled by app)
