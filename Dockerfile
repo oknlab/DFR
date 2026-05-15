@@ -57,7 +57,44 @@ class LiveEventsResponse(BaseModel):
     events: List[LiveEvent] = Field(default_factory=list)
 
 
-app = FastAPI(title="Secure JSON Proxy Bridge", version="1.2.0")
+
+
+def build_upstream_headers(target_url: str, mode: str = "default") -> dict[str, str]:
+    parsed = urlparse(target_url)
+    host = parsed.netloc
+    base = {
+        "Accept": "application/json,text/plain,*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "Connection": "keep-alive",
+        "DNT": "1",
+    }
+
+    if mode == "sofascore":
+        base.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+                "Referer": "https://www.sofascore.com/",
+                "Origin": "https://www.sofascore.com",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-origin",
+            }
+        )
+    else:
+        base.update(
+            {
+                "User-Agent": "FastAPI-JSON-Bridge/1.3 (+https://localhost)",
+                "Referer": f"{parsed.scheme}://{host}/" if parsed.scheme and host else "",
+            }
+        )
+        if base["Referer"] == "":
+            base.pop("Referer")
+
+    return base
+
+app = FastAPI(title="Secure JSON Proxy Bridge", version="1.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -88,15 +125,13 @@ async def get_live_events(
 
     try:
         async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS, follow_redirects=True) as client:
-            response = await client.get(
-                target_url,
-                headers={
-                    "Accept": "application/json,text/plain;q=0.9,*/*;q=0.8",
-                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-                    "Referer": "https://www.google.com/",
-                    "Origin": "https://www.google.com",
-                },
-            )
+            response = await client.get(target_url, headers=build_upstream_headers(target_url, mode="default"))
+
+            # Some providers (including SofaScore) can return 403 for generic bot-like signatures.
+            # Retry once with provider-matching browser headers for compatibility.
+            if response.status_code == 403 and "sofascore.com" in parsed.netloc:
+                response = await client.get(target_url, headers=build_upstream_headers(target_url, mode="sofascore"))
+
             response.raise_for_status()
 
         payload: Any = response.json()
@@ -116,9 +151,12 @@ async def get_live_events(
         raise HTTPException(status_code=504, detail="Upstream request timed out") from exc
     except httpx.HTTPStatusError as exc:
         body_preview = exc.response.text[:180].replace("\n", " ")
+        hint = ""
+        if exc.response.status_code == 403:
+            hint = " Upstream forbids this environment/IP (anti-bot/geofencing). Try another API URL or run from a residential network."
         raise HTTPException(
             status_code=502,
-            detail=f"Upstream returned HTTP {exc.response.status_code}. Body preview: {body_preview}",
+            detail=f"Upstream returned HTTP {exc.response.status_code}. Body preview: {body_preview}.{hint}",
         ) from exc
     except ValidationError as exc:
         raise HTTPException(status_code=502, detail=f"Schema validation failed: {exc.errors()}") from exc
