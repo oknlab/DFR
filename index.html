@@ -3,46 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FastAPI JSON Bridge Demo</title>
+    <title>Pipeline Bridge Viewer</title>
     <style>
-      body {
-        font-family: Arial, sans-serif;
-        margin: 2rem;
-        max-width: 900px;
-      }
-      .row {
-        margin-bottom: 1rem;
-      }
-      input,
-      button {
-        font-size: 1rem;
-        padding: 0.5rem;
-      }
-      pre {
-        background: #f4f4f4;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 1rem;
-        overflow: auto;
-      }
-      .error {
-        color: #b00020;
-      }
-      .meta {
-        color: #555;
-      }
+      body { font-family: Arial, sans-serif; margin: 2rem; max-width: 980px; }
+      .row { margin-bottom: 1rem; }
+      input, button, select { font-size: 1rem; padding: 0.45rem; }
+      pre { background:#f4f4f4; border:1px solid #ddd; border-radius:8px; padding:1rem; overflow:auto; }
+      .error { color:#b00020; }
+      .meta { color:#555; }
     </style>
   </head>
   <body>
-    <h1>Secure JSON Proxy Viewer</h1>
-    <p>
-      Frontend calls FastAPI at <code>/api/search</code>; FastAPI fetches upstream JSON
-      server-side to avoid browser CORS blocks.
-    </p>
+    <h1>Search → Crawling → Scraping → JSON API</h1>
+    <p>Frontend only calls FastAPI. Backend performs upstream request and exposes pipeline-safe JSON.</p>
 
     <div class="row">
       <label for="query">Query (q): </label>
       <input id="query" type="text" value="[]" />
+      <label for="mode">View:</label>
+      <select id="mode">
+        <option value="search">Raw proxy payload</option>
+        <option value="pipeline" selected>Pipeline stages</option>
+      </select>
       <button id="loadBtn">Load Data</button>
     </div>
 
@@ -54,31 +36,26 @@
       const output = document.getElementById("output");
       const statusEl = document.getElementById("status");
       const queryEl = document.getElementById("query");
+      const modeEl = document.getElementById("mode");
       const loadBtn = document.getElementById("loadBtn");
 
       async function loadData() {
         const q = queryEl.value.trim() || "[]";
-        const endpoint = `${API_BASE}/api/search?q=${encodeURIComponent(q)}&format=json`;
+        const route = modeEl.value === "pipeline" ? "/api/pipeline" : "/api/search";
+        const endpoint = `${API_BASE}${route}?q=${encodeURIComponent(q)}&format=json`;
 
         statusEl.textContent = "Loading...";
         statusEl.className = "meta";
 
         try {
-          const response = await fetch(endpoint, {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
-
+          const response = await fetch(endpoint, { method: "GET", headers: { "Content-Type": "application/json" } });
           if (!response.ok) {
             const text = await response.text();
             throw new Error(`Backend error ${response.status}: ${text}`);
           }
-
           const payload = await response.json();
-          statusEl.textContent = `Loaded successfully from ${payload.source}`;
-          output.textContent = JSON.stringify(payload.data, null, 2);
+          statusEl.textContent = "Loaded successfully.";
+          output.textContent = JSON.stringify(payload, null, 2);
         } catch (error) {
           statusEl.textContent = "Failed to load data.";
           statusEl.className = "error";
