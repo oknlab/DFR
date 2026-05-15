@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Live Football Events (FastAPI Proxy)</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 2rem;
+        background: #f7f7f8;
+        color: #222;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin-bottom: 0.5rem;
+      }
+      .meta {
+        margin-bottom: 1rem;
+        color: #666;
+      }
+      button {
+        background: #1f6feb;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 0.6rem 1rem;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #1859bd;
+      }
+      .error {
+        margin-top: 1rem;
+        color: #b00020;
+        font-weight: 600;
+      }
+      .events {
+        margin-top: 1rem;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+      }
+      .card {
+        background: #fff;
+        border-radius: 8px;
+        padding: 0.9rem;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      .teams {
+        font-size: 1.05rem;
+        font-weight: 700;
+      }
+      .small {
+        color: #555;
+        font-size: 0.92rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Live Football Events</h1>
+      <p class="meta">Data source is proxied by FastAPI to avoid browser CORS blocks.</p>
+
+      <button id="loadBtn">Load Live Events</button>
+      <p id="status" class="small"></p>
+      <p id="error" class="error"></p>
+      <section id="events" class="events"></section>
+    </main>
+
+    <script>
+      const API_BASE = 'http://127.0.0.1:8000';
+      const PROXY_ENDPOINT = `${API_BASE}/api/live-events`;
+
+      const loadBtn = document.getElementById('loadBtn');
+      const eventsRoot = document.getElementById('events');
+      const errorRoot = document.getElementById('error');
+      const statusRoot = document.getElementById('status');
+
+      function renderEvents(events) {
+        eventsRoot.innerHTML = '';
+
+        if (!Array.isArray(events) || events.length === 0) {
+          eventsRoot.innerHTML = '<div class="card">No live events available right now.</div>';
+          return;
+        }
+
+        events.forEach((event) => {
+          const card = document.createElement('article');
+          card.className = 'card';
+
+          const home = event?.homeTeam?.name || 'Home Team';
+          const away = event?.awayTeam?.name || 'Away Team';
+          const tournament = event?.tournament?.name || 'Unknown Tournament';
+          const status = event?.status?.description || event?.status?.type || 'Unknown Status';
+
+          card.innerHTML = `
+            <div class="teams">${home} vs ${away}</div>
+            <div class="small">Tournament: ${tournament}</div>
+            <div class="small">Status: ${status}</div>
+            <div class="small">Event ID: ${event?.id ?? 'N/A'}</div>
+          `;
+
+          eventsRoot.appendChild(card);
+        });
+      }
+
+      async function loadLiveEvents() {
+        errorRoot.textContent = '';
+        statusRoot.textContent = 'Loading...';
+        loadBtn.disabled = true;
+
+        try {
+          const response = await fetch(PROXY_ENDPOINT, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(`Proxy failed with HTTP ${response.status}`);
+          }
+
+          const data = await response.json();
+          renderEvents(data.events);
+          statusRoot.textContent = `Loaded ${data.events?.length || 0} event(s).`;
+        } catch (error) {
+          console.error(error);
+          errorRoot.textContent = `Failed to load events: ${error.message}`;
+          statusRoot.textContent = '';
+        } finally {
+          loadBtn.disabled = false;
+        }
+      }
+
+      loadBtn.addEventListener('click', loadLiveEvents);
+    </script>
+  </body>
+</html>
