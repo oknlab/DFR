@@ -1,3 +1,4 @@
+from os import getenv
 from typing import Any
 
 import httpx
@@ -6,18 +7,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 
-FRONTEND_ORIGIN = "http://127.0.0.1:5500"
-UPSTREAM_SEARCH_URL = "https://connectnet.onrender.com/search"
+FRONTEND_ORIGIN = getenv("FRONTEND_ORIGIN", "http://127.0.0.1:5500")
+UPSTREAM_SEARCH_URL = getenv("UPSTREAM_SEARCH_URL", "https://connectnet.onrender.com/search")
 
-app = FastAPI(title="Secure Data Pipeline Bridge", version="1.1.0")
+app = FastAPI(title="Secure Data Pipeline Bridge", version="1.2.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_ORIGIN],
     allow_credentials=False,
     allow_methods=["GET"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization"],
 )
+
+
+class ProxyResponse(BaseModel):
+    source: str = Field(description="Resolved upstream URL used for this request")
+    query: str = Field(description="Search query")
+    data: Any = Field(description="Raw JSON payload from upstream")
 
 
 class PipelineResponse(BaseModel):
@@ -47,23 +54,19 @@ async def fetch_upstream_json(q: str, format_: str = "json") -> tuple[str, Any]:
         raise HTTPException(status_code=502, detail="Network error while reaching upstream") from exc
 
 
-@app.get("/api/search")
+@app.get("/api/search", response_model=ProxyResponse)
 async def proxy_search(
-    q: str = Query(default="[]", description="Search query sent to upstream"),
+    q: str = Query(default="", description="Search query sent to upstream"),
     format: str = Query(default="json", pattern="^json$"),
-) -> dict[str, Any]:
+) -> ProxyResponse:
     source, payload = await fetch_upstream_json(q=q, format_=format)
-    return {"source": source, "query": q, "data": payload}
+    return ProxyResponse(source=source, query=q, data=payload)
 
 
 @app.get("/api/pipeline", response_model=PipelineResponse)
 async def pipeline_view(
-    q: str = Query(default="[]", description="Pipeline input query"),
+    q: str = Query(default="", description="Pipeline input query"),
 ) -> PipelineResponse:
-    """
-    Logical pipeline view:
-    search -> crawling -> scraping -> JSON API
-    """
     source, payload = await fetch_upstream_json(q=q)
 
     stages: dict[str, Any] = {

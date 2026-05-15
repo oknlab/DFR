@@ -19,7 +19,7 @@
 
     <div class="row">
       <label for="query">Query (q): </label>
-      <input id="query" type="text" value="[]" />
+      <input id="query" type="text" value="" />
       <label for="mode">View:</label>
       <select id="mode">
         <option value="search">Raw proxy payload</option>
@@ -40,9 +40,12 @@
       const loadBtn = document.getElementById("loadBtn");
 
       async function loadData() {
-        const q = queryEl.value.trim() || "[]";
-        const route = modeEl.value === "pipeline" ? "/api/pipeline" : "/api/search";
-        const endpoint = `${API_BASE}${route}?q=${encodeURIComponent(q)}&format=json`;
+        const q = queryEl.value.trim();
+        const isPipeline = modeEl.value === "pipeline";
+        const route = isPipeline ? "/api/pipeline" : "/api/search";
+        const queryParams = new URLSearchParams({ q });
+        if (!isPipeline) queryParams.set("format", "json");
+        const endpoint = `${API_BASE}${route}?${queryParams.toString()}`;
 
         statusEl.textContent = "Loading...";
         statusEl.className = "meta";
@@ -59,12 +62,16 @@
         } catch (error) {
           statusEl.textContent = "Failed to load data.";
           statusEl.className = "error";
-          output.textContent = error.message;
+          output.textContent = error?.message || "Unknown error";
         }
       }
 
       loadBtn.addEventListener("click", loadData);
-      loadData();
+      loadData().catch((error) => {
+        statusEl.textContent = "Initial load failed.";
+        statusEl.className = "error";
+        output.textContent = error?.message || "Unknown error";
+      });
     </script>
   </body>
 </html>
