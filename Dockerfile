@@ -130,17 +130,42 @@ def upstream_headers(target_url: str, mode: str = "default") -> dict[str, str]:
     return headers
 
 
-def normalize_payload(payload: Any) -> LiveEventsResponse:
-    if isinstance(payload, dict) and isinstance(payload.get("events"), list):
-        return LiveEventsResponse.model_validate(payload)
-
+def _find_events_list(payload: Any) -> list[Any] | None:
+    """Best-effort extraction for multiple common API shapes."""
     if isinstance(payload, list):
-        return LiveEventsResponse(events=payload)
+        return payload
 
-    raise HTTPException(
-        status_code=502,
-        detail="Upstream JSON shape unsupported. Expected {'events': [...]} or [...].",
-    )
+    if isinstance(payload, dict):
+        if isinstance(payload.get("events"), list):
+            return payload["events"]
+
+        data = payload.get("data")
+        if isinstance(data, dict) and isinstance(data.get("events"), list):
+            return data["events"]
+
+        # fallback: shallow search for first list under keys commonly used by sports APIs
+        for key in ("items", "results", "matches", "fixtures", "live", "rows"):
+            val = payload.get(key)
+            if isinstance(val, list):
+                return val
+            if isinstance(val, dict) and isinstance(val.get("events"), list):
+                return val["events"]
+
+    return None
+
+
+def normalize_payload(payload: Any) -> LiveEventsResponse:
+    events = _find_events_list(payload)
+    if events is None:
+        raise HTTPException(
+            status_code=502,
+            detail="Upstream JSON shape unsupported. Could not locate an events list in payload.",
+        )
+
+    try:
+        return LiveEventsResponse(events=events)
+    except ValidationError as exc:
+        raise HTTPException(status_code=502, detail=f"Schema validation failed: {exc.errors()}") from exc
 
 
 @app.get("/")
