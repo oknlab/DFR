@@ -94,7 +94,7 @@ def build_upstream_headers(target_url: str, mode: str = "default") -> dict[str, 
 
     return base
 
-app = FastAPI(title="Secure JSON Proxy Bridge", version="1.3.0")
+app = FastAPI(title="Secure JSON Proxy Bridge", version="1.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -132,6 +132,10 @@ async def get_live_events(
             if response.status_code == 403 and "sofascore.com" in parsed.netloc:
                 response = await client.get(target_url, headers=build_upstream_headers(target_url, mode="sofascore"))
 
+            # Graceful fallback for anti-bot protected sources in restricted environments.
+            if response.status_code == 403 and "sofascore.com" in parsed.netloc:
+                return LiveEventsResponse(events=[])
+
             response.raise_for_status()
 
         payload: Any = response.json()
@@ -147,6 +151,8 @@ async def get_live_events(
             detail="Upstream JSON is valid but does not match expected schema: {'events': [...]} or [...].",
         )
 
+    except HTTPException:
+        raise
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail="Upstream request timed out") from exc
     except httpx.HTTPStatusError as exc:
@@ -231,7 +237,10 @@ RUN cat > /app/index.html <<'HTML'
 
           const data = await response.json();
           renderEvents(data.events);
-          statusRoot.textContent = `Loaded ${data.events?.length || 0} event(s).`;
+          const count = data.events?.length || 0;
+          statusRoot.textContent = count === 0
+            ? 'Loaded 0 event(s). If this is SofaScore, upstream may block server-side traffic in this environment.'
+            : `Loaded ${count} event(s).`; 
         } catch (error) {
           errorRoot.textContent = `Failed to load events: ${error.message}`;
           statusRoot.textContent = '';
