@@ -63,7 +63,7 @@ class LiveEventsResponse(BaseModel):
     events: list[LiveEvent] = Field(default_factory=list)
 
 
-app = FastAPI(title="Secure JSON Proxy Bridge", version="2.0.0")
+app = FastAPI(title="Secure JSON Proxy Bridge", version="2.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -130,36 +130,58 @@ def upstream_headers(target_url: str, mode: str = "default") -> dict[str, str]:
     return headers
 
 
-def _find_events_list(payload: Any) -> list[Any] | None:
-    """Best-effort extraction for multiple common API shapes."""
-    if isinstance(payload, list):
-        return payload
+def parse_events(data: Any) -> list[Any]:
+    """Robust event extractor for deeply nested sports payloads.
 
-    if isinstance(payload, dict):
-        if isinstance(payload.get("events"), list):
-            return payload["events"]
+    Handles shapes like:
+    {"sports": [{"leagues": [{"events": [...]}]}]}
+    and falls back to dynamic recursive discovery.
+    """
 
-        data = payload.get("data")
-        if isinstance(data, dict) and isinstance(data.get("events"), list):
-            return data["events"]
+    collected: list[Any] = []
 
-        # fallback: shallow search for first list under keys commonly used by sports APIs
-        for key in ("items", "results", "matches", "fixtures", "live", "rows"):
-            val = payload.get(key)
-            if isinstance(val, list):
-                return val
-            if isinstance(val, dict) and isinstance(val.get("events"), list):
-                return val["events"]
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            # Preferred explicit key
+            if isinstance(node.get("events"), list):
+                collected.extend(node["events"])
 
-    return None
+            # Continue deep traversal for complex payloads
+            for value in node.values():
+                walk(value)
+
+        elif isinstance(node, list):
+            # If this list already looks like event objects, keep it
+            if node and all(isinstance(item, dict) for item in node):
+                # Heuristic: only collect directly if objects look event-like
+                if any(any(k in item for k in ("id", "homeTeam", "awayTeam", "status", "name")) for item in node):
+                    collected.extend(node)
+            for item in node:
+                walk(item)
+
+    walk(data)
+
+    # De-duplicate by object id/key if present
+    dedup: list[Any] = []
+    seen: set[str] = set()
+    for event in collected:
+        if not isinstance(event, dict):
+            continue
+        key = str(event.get("id") or event.get("uid") or id(event))
+        if key in seen:
+            continue
+        seen.add(key)
+        dedup.append(event)
+
+    return dedup
 
 
 def normalize_payload(payload: Any) -> LiveEventsResponse:
-    events = _find_events_list(payload)
-    if events is None:
+    events = parse_events(payload)
+    if not events:
         raise HTTPException(
             status_code=502,
-            detail="Upstream JSON shape unsupported. Could not locate an events list in payload.",
+            detail="Upstream JSON parsed successfully but no events list was found in nested payload.",
         )
 
     try:
