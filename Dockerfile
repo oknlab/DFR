@@ -21,7 +21,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 ALLOWED_ORIGINS = [
     "http://localhost:5500",
@@ -46,6 +46,21 @@ class EventStatus(BaseModel):
     description: str | None = None
 
 
+class EventStatusCoerced(BaseModel):
+    """Accepts either object or scalar status from upstream feeds."""
+
+    type: str | None = None
+    description: str | None = None
+
+    @classmethod
+    def from_any(cls, value: Any) -> "EventStatusCoerced":
+        if isinstance(value, dict):
+            return cls.model_validate(value)
+        if value is None:
+            return cls()
+        return cls(type=str(value), description=str(value))
+
+
 class EventTournament(BaseModel):
     name: str | None = None
 
@@ -55,15 +70,20 @@ class LiveEvent(BaseModel):
     slug: str | None = None
     homeTeam: Team | None = None
     awayTeam: Team | None = None
-    status: EventStatus | None = None
+    status: EventStatusCoerced | None = None
     tournament: EventTournament | None = None
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def coerce_status(cls, value: Any) -> Any:
+        return EventStatusCoerced.from_any(value)
 
 
 class LiveEventsResponse(BaseModel):
     events: list[LiveEvent] = Field(default_factory=list)
 
 
-app = FastAPI(title="Secure JSON Proxy Bridge", version="2.1.0")
+app = FastAPI(title="Secure JSON Proxy Bridge", version="2.2.0")
 
 app.add_middleware(
     CORSMiddleware,
