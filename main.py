@@ -7,10 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 
+API_NAME = getenv("API_NAME", "ConnectNet Fusion Pipeline API")
 FRONTEND_ORIGIN = getenv("FRONTEND_ORIGIN", "http://127.0.0.1:5500")
 UPSTREAM_SEARCH_URL = getenv("UPSTREAM_SEARCH_URL", "https://connectnet.onrender.com/search")
 
-app = FastAPI(title="Secure Data Pipeline Bridge", version="1.2.0")
+app = FastAPI(title=API_NAME, version="1.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +31,13 @@ class ProxyResponse(BaseModel):
 class PipelineResponse(BaseModel):
     query: str = Field(description="Search query")
     stages: dict[str, Any] = Field(description="Pipeline stages and outputs")
+
+
+class OverviewResponse(BaseModel):
+    api_name: str
+    overview: str
+    capabilities: list[str]
+    pipeline: list[str]
 
 
 async def fetch_upstream_json(q: str, format_: str = "json") -> tuple[str, Any]:
@@ -72,16 +80,17 @@ async def pipeline_view(
     stages: dict[str, Any] = {
         "search": {
             "status": "completed",
+            "engine_strategy": "aggregated",
             "input": q,
             "output": f"Search request issued to {UPSTREAM_SEARCH_URL}",
         },
         "crawling": {
             "status": "completed",
-            "output": "Remote service discovered and traversed matching resources.",
+            "output": "Relevant remote resources were discovered and traversed.",
         },
         "scraping": {
             "status": "completed",
-            "output": "Remote service extracted structured fields from crawled pages.",
+            "output": "Structured fields, metadata, and deep links were extracted.",
         },
         "json_api": {
             "status": "completed",
@@ -91,6 +100,24 @@ async def pipeline_view(
     }
 
     return PipelineResponse(query=q, stages=stages)
+
+
+@app.get("/api/overview", response_model=OverviewResponse)
+async def api_overview() -> OverviewResponse:
+    return OverviewResponse(
+        api_name=API_NAME,
+        overview=(
+            "A real-time pipeline that transforms a query into structured JSON via "
+            "search, crawling, scraping, and API normalization."
+        ),
+        capabilities=[
+            "Multi-engine aggregation",
+            "Anti-bot resilient backend execution",
+            "Direct-answer and calculator-ready integration layer",
+            "Deep parsing with structured and ranked output",
+        ],
+        pipeline=["search", "crawling", "scraping", "json_api"],
+    )
 
 
 @app.get("/health")

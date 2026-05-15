@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pipeline Bridge Viewer</title>
+    <title>ConnectNet Fusion Pipeline API</title>
     <style>
       body { font-family: Arial, sans-serif; margin: 2rem; max-width: 980px; }
       .row { margin-bottom: 1rem; }
@@ -14,8 +14,9 @@
     </style>
   </head>
   <body>
-    <h1>Search → Crawling → Scraping → JSON API</h1>
-    <p>Frontend only calls FastAPI. Backend performs upstream request and exposes pipeline-safe JSON.</p>
+    <h1>ConnectNet Fusion Pipeline API</h1>
+    <p><strong>Search → Crawl → Scrape → JSON API</strong></p>
+    <p>A powerful real-time data pipeline that converts web queries into structured JSON.</p>
 
     <div class="row">
       <label for="query">Query (q): </label>
@@ -24,6 +25,7 @@
       <select id="mode">
         <option value="search">Raw proxy payload</option>
         <option value="pipeline" selected>Pipeline stages</option>
+        <option value="overview">API overview</option>
       </select>
       <button id="loadBtn">Load Data</button>
     </div>
@@ -41,11 +43,13 @@
 
       async function loadData() {
         const q = queryEl.value.trim();
-        const isPipeline = modeEl.value === "pipeline";
-        const route = isPipeline ? "/api/pipeline" : "/api/search";
-        const queryParams = new URLSearchParams({ q });
-        if (!isPipeline) queryParams.set("format", "json");
-        const endpoint = `${API_BASE}${route}?${queryParams.toString()}`;
+        const mode = modeEl.value;
+        const route = mode === "pipeline" ? "/api/pipeline" : mode === "overview" ? "/api/overview" : "/api/search";
+        const queryParams = new URLSearchParams();
+        if (mode !== "overview") queryParams.set("q", q);
+        if (mode === "search") queryParams.set("format", "json");
+        const qs = queryParams.toString();
+        const endpoint = `${API_BASE}${route}${qs ? `?${qs}` : ""}`;
 
         statusEl.textContent = "Loading...";
         statusEl.className = "meta";
