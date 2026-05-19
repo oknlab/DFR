@@ -9,7 +9,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from redis.asyncio import Redis
 
-from app.web_search import get_search_context
+from app.web_search import (
+    DEFAULT_ENGINE_KEY,
+    get_search_context,
+    get_search_engine,
+    list_search_engines,
+)
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
@@ -44,7 +49,14 @@ templates = Jinja2Templates(directory="app/templates")
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "engines": list_search_engines(),
+            "default_engine": DEFAULT_ENGINE_KEY,
+        },
+    )
 
 
 @app.get("/health")
@@ -59,18 +71,35 @@ async def health():
     return {"status": "ok", "redis": redis_status}
 
 
+@app.get("/api/engines")
+async def engines():
+    return {"default": DEFAULT_ENGINE_KEY, "engines": list_search_engines()}
+
+
 @app.get("/api/search")
 async def search(
     q: Annotated[str, Query(min_length=1, max_length=200, description="Search query")],
     max_results: Annotated[int, Query(ge=1, le=MAX_RESULTS_LIMIT)] = 5,
+    engine: Annotated[str, Query(description="Search engine key")] = DEFAULT_ENGINE_KEY,
 ):
     query = q.strip()
     if not query:
         raise HTTPException(status_code=400, detail="Search query cannot be empty")
 
+    try:
+        selected_engine = get_search_engine(engine)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     results = await get_search_context(
         query=query,
         max_results=max_results,
         redis_client=app.state.redis,
+        engine_key=selected_engine.key,
     )
-    return {"query": query, "count": len(results), "results": results}
+    return {
+        "query": query,
+        "engine": selected_engine.public_dict(),
+        "count": len(results),
+        "results": results,
+    }

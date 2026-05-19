@@ -7,28 +7,52 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <main class="shell">
-      <section class="hero" aria-labelledby="page-title">
-        <p class="eyebrow">FastAPI • Redis • JSON API</p>
-        <h1 id="page-title">DFR Search</h1>
-        <p class="lede">Search the web, crawl the top results, and return clean JSON-backed previews.</p>
+    <header class="topbar" aria-label="Utility navigation">
+      <a href="/api/engines" target="_blank" rel="noreferrer">Engines API</a>
+      <a href="/health" target="_blank" rel="noreferrer">Health</a>
+    </header>
 
-        <form id="search-form" class="search-card">
-          <label class="sr-only" for="query">Search query</label>
-          <input id="query" name="q" type="search" placeholder="Search for docs, news, or ideas..." autocomplete="off" required />
-          <label class="sr-only" for="max-results">Number of results</label>
-          <select id="max-results" name="max_results" aria-label="Number of results">
-            <option value="3">3 results</option>
-            <option value="5" selected>5 results</option>
-            <option value="10">10 results</option>
-          </select>
-          <button type="submit">Search</button>
+    <main class="search-shell">
+      <section class="home-panel" aria-labelledby="page-title">
+        <div class="wordmark" aria-label="DFR Search">
+          <span class="blue">D</span><span class="red">F</span><span class="yellow">R</span>
+          <span class="blue">S</span><span class="green">e</span><span class="red">a</span><span class="yellow">r</span><span class="blue">c</span><span class="green">h</span>
+        </div>
+        <h1 id="page-title" class="sr-only">DFR Search</h1>
+        <p class="tagline">A clean Google-style search page powered by FastAPI, Redis, and pluggable JSON search engines.</p>
+
+        <form id="search-form" class="search-form">
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3a6.5 6.5 0 0 1 5.16 10.45l4.45 4.44-1.42 1.42-4.44-4.45A6.5 6.5 0 1 1 9.5 3Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" /></svg>
+            <label class="sr-only" for="query">Search query</label>
+            <input id="query" name="q" type="search" placeholder="Search the web" autocomplete="off" required autofocus />
+          </div>
+
+          <div class="controls">
+            <label class="control-label" for="engine">Search engine</label>
+            <select id="engine" name="engine">
+              {% for engine in engines %}
+                <option value="{{ engine.key }}" {% if engine.key == default_engine %}selected{% endif %}>{{ engine.name }}</option>
+              {% endfor %}
+            </select>
+
+            <label class="control-label" for="max-results">Results</label>
+            <select id="max-results" name="max_results">
+              <option value="3">3</option>
+              <option value="5" selected>5</option>
+              <option value="10">10</option>
+            </select>
+          </div>
+
+          <div class="actions">
+            <button type="submit">Search</button>
+            <a class="secondary-button" id="api-link" href="/api/search?q=fastapi&max_results=5&engine={{ default_engine }}" target="_blank" rel="noreferrer">JSON API</a>
+          </div>
         </form>
       </section>
 
       <section class="status-panel" aria-live="polite">
-        <div id="status" class="status">Enter a query to begin.</div>
-        <a class="api-link" id="api-link" href="/api/search?q=fastapi&max_results=5" target="_blank" rel="noreferrer">View JSON API</a>
+        <div id="status" class="status">Choose an engine and enter a query to begin.</div>
       </section>
 
       <section id="results" class="results" aria-label="Search results"></section>
@@ -37,7 +61,13 @@
     <template id="result-template">
       <article class="result-card">
         <div class="result-body">
-          <p class="source"></p>
+          <div class="result-meta">
+            <span class="favicon" aria-hidden="true"></span>
+            <div>
+              <p class="source"></p>
+              <p class="url"></p>
+            </div>
+          </div>
           <h2><a class="title" target="_blank" rel="noreferrer"></a></h2>
           <p class="snippet"></p>
         </div>

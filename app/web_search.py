@@ -2,6 +2,8 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
+from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urljoin, urlparse
 
@@ -24,6 +26,100 @@ GOOGLE_CSE_URL = "https://cse.google.com/cse?cx=014662525286492529401%3A2upbuo2q
 
 CONCURRENT_REQUESTS_LIMIT = 5
 SEARCH_CACHE_TTL = 3600  # Cache search results for 1 hour
+
+
+@dataclass(frozen=True)
+class SearchEngine:
+    """A JSON-producing search provider exposed to the frontend."""
+
+    key: str
+    name: str
+    url: str
+    description: str = ""
+
+    def public_dict(self) -> dict[str, str]:
+        return {
+            "key": self.key,
+            "name": self.name,
+            "description": self.description,
+        }
+
+
+DEFAULT_SEARCH_ENGINES = {
+    "connectnet": SearchEngine(
+        key="connectnet",
+        name="ConnectNet",
+        url=SEARCH_ENGINE_URL,
+        description="Default JSON search API",
+    ),
+}
+
+
+def _load_search_engines() -> dict[str, SearchEngine]:
+    """Load configured engines from SEARCH_ENGINES_JSON and merge with defaults.
+
+    SEARCH_ENGINES_JSON accepts a JSON object such as:
+    {
+      "local": {"name": "Local SearXNG", "url": "http://searxng:8080/search"},
+      "company": {"name": "Company Search", "url": "https://example.com/search"}
+    }
+    """
+    engines = dict(DEFAULT_SEARCH_ENGINES)
+    searxng_url = os.getenv("SEARXNG_SEARCH_URL")
+    if searxng_url:
+        engines["searxng"] = SearchEngine(
+            key="searxng",
+            name="SearXNG compatible",
+            url=searxng_url,
+            description="JSON-capable SearXNG endpoint from SEARXNG_SEARCH_URL",
+        )
+
+    raw_config = os.getenv("SEARCH_ENGINES_JSON")
+    if not raw_config:
+        return engines
+
+    try:
+        configured = json.loads(raw_config)
+    except json.JSONDecodeError as exc:
+        logging.warning("Invalid SEARCH_ENGINES_JSON; using defaults: %s", exc)
+        return engines
+
+    if not isinstance(configured, dict):
+        logging.warning("SEARCH_ENGINES_JSON must be an object; using defaults")
+        return engines
+
+    for key, value in configured.items():
+        if not isinstance(value, dict) or not value.get("url"):
+            logging.warning("Skipping invalid search engine config for key: %s", key)
+            continue
+        safe_key = str(key).strip().lower().replace(" ", "-")
+        engines[safe_key] = SearchEngine(
+            key=safe_key,
+            name=str(value.get("name") or key),
+            url=str(value["url"]),
+            description=str(value.get("description") or "Custom JSON search API"),
+        )
+    return engines
+
+
+SEARCH_ENGINES = _load_search_engines()
+DEFAULT_ENGINE_KEY = os.getenv("DEFAULT_SEARCH_ENGINE", "connectnet")
+if DEFAULT_ENGINE_KEY not in SEARCH_ENGINES:
+    logging.warning("Unknown DEFAULT_SEARCH_ENGINE '%s'; falling back to connectnet", DEFAULT_ENGINE_KEY)
+    DEFAULT_ENGINE_KEY = "connectnet"
+
+
+def list_search_engines() -> list[dict[str, str]]:
+    """Return frontend-safe search engine metadata."""
+    return [engine.public_dict() for engine in SEARCH_ENGINES.values()]
+
+
+def get_search_engine(engine_key: str | None = None) -> SearchEngine:
+    """Resolve a search engine key or raise ValueError for unknown engines."""
+    selected = engine_key or DEFAULT_ENGINE_KEY
+    if selected not in SEARCH_ENGINES:
+        raise ValueError(f"Unknown search engine: {selected}")
+    return SEARCH_ENGINES[selected]
 
 
 def clean_content(soup: BeautifulSoup) -> str:
@@ -55,6 +151,30 @@ def extract_images(soup: BeautifulSoup, base_url: str) -> list[str]:
     return list(images)[:5]
 
 
+def normalize_search_results(data: dict, max_results: int) -> list[dict]:
+    """Normalize common JSON search formats into the app's document shape."""
+    raw_results = data.get("results") or data.get("items") or []
+    initial_documents = []
+    unique_urls = set()
+
+    for result in raw_results[: max_results * 2]:
+        url = result.get("url") or result.get("link")
+        if not url or url in unique_urls:
+            continue
+        unique_urls.add(url)
+        initial_documents.append(
+            {
+                "title": result.get("title") or result.get("name") or "Untitled",
+                "url": url,
+                "source_name": urlparse(url).netloc.replace("www.", ""),
+                "content": result.get("content") or result.get("snippet") or result.get("description") or "",
+            }
+        )
+        if len(initial_documents) >= max_results:
+            break
+    return initial_documents
+
+
 async def crawl_and_extract(
     session: httpx.AsyncClient,
     url: str,
@@ -81,47 +201,33 @@ async def get_search_context(
     query: str,
     max_results: int = 5,
     redis_client: Optional[AsyncRedis] = None,
+    engine_key: str | None = None,
 ) -> list[dict]:
     """Perform a web search, cache the JSON result in Redis, and crawl result pages."""
+    engine = get_search_engine(engine_key)
     cache_key = None
     if redis_client:
-        query_hash = hashlib.sha256(f"{query}:{max_results}".encode()).hexdigest()
+        query_hash = hashlib.sha256(f"{engine.key}:{query}:{max_results}".encode()).hexdigest()
         cache_key = f"search:{query_hash}"
         try:
             cached_result = await redis_client.get(cache_key)
             if cached_result:
-                logging.info("CACHE HIT for search query: '%s'", query)
+                logging.info("CACHE HIT for %s search query: '%s'", engine.key, query)
                 return json.loads(cached_result)
         except Exception as exc:
             logging.warning("Redis cache read error: %s", exc)
-        logging.info("CACHE MISS for search query: '%s'", query)
+        logging.info("CACHE MISS for %s search query: '%s'", engine.key, query)
 
     search_params = {"q": query, "format": "json"}
-    initial_documents = []
 
     try:
         async with httpx.AsyncClient(headers=BROWSER_HEADERS, timeout=20) as client:
-            logging.info("Querying search instance for: %s", query)
-            response = await client.get(SEARCH_ENGINE_URL, params=search_params)
+            logging.info("Querying %s search instance for: %s", engine.key, query)
+            response = await client.get(engine.url, params=search_params)
             response.raise_for_status()
-            data = response.json()
-            unique_urls = set()
-            for result in data.get("results", [])[: max_results * 2]:
-                url = result.get("url")
-                if url and url not in unique_urls:
-                    unique_urls.add(url)
-                    initial_documents.append(
-                        {
-                            "title": result.get("title", "Untitled"),
-                            "url": url,
-                            "source_name": urlparse(url).netloc.replace("www.", ""),
-                            "content": result.get("content", ""),
-                        }
-                    )
-                if len(initial_documents) >= max_results:
-                    break
+            initial_documents = normalize_search_results(response.json(), max_results)
     except Exception as exc:
-        logging.error("Error during initial web search for '%s': %s", query, exc)
+        logging.error("Error during %s web search for '%s': %s", engine.key, query, exc)
         return []
 
     if not initial_documents:
@@ -143,15 +249,16 @@ async def get_search_context(
                     "source_name": doc["source_name"],
                     "content": content,
                     "images": crawled.get("images", []),
+                    "engine": engine.key,
                 }
             )
 
-    logging.info("Processed %s documents for query: '%s'", len(final_documents), query)
+    logging.info("Processed %s documents for %s query: '%s'", len(final_documents), engine.key, query)
 
     if redis_client and cache_key:
         try:
             await redis_client.set(cache_key, json.dumps(final_documents), ex=SEARCH_CACHE_TTL)
-            logging.info("CACHED search result for query: '%s'", query)
+            logging.info("CACHED %s search result for query: '%s'", engine.key, query)
         except Exception as exc:
             logging.warning("Redis cache write error: %s", exc)
 

@@ -3,6 +3,8 @@ services:
     build: .
     environment:
       REDIS_URL: redis://redis:6379/0
+      DEFAULT_SEARCH_ENGINE: connectnet
+      # Add more JSON-capable engines with SEARCH_ENGINES_JSON or SEARXNG_SEARCH_URL.
     ports:
       - "8000:8000"
     depends_on:
