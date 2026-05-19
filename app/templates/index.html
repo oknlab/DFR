@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DFR Search</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero" aria-labelledby="page-title">
+        <p class="eyebrow">FastAPI • Redis • JSON API</p>
+        <h1 id="page-title">DFR Search</h1>
+        <p class="lede">Search the web, crawl the top results, and return clean JSON-backed previews.</p>
+
+        <form id="search-form" class="search-card">
+          <label class="sr-only" for="query">Search query</label>
+          <input id="query" name="q" type="search" placeholder="Search for docs, news, or ideas..." autocomplete="off" required />
+          <label class="sr-only" for="max-results">Number of results</label>
+          <select id="max-results" name="max_results" aria-label="Number of results">
+            <option value="3">3 results</option>
+            <option value="5" selected>5 results</option>
+            <option value="10">10 results</option>
+          </select>
+          <button type="submit">Search</button>
+        </form>
+      </section>
+
+      <section class="status-panel" aria-live="polite">
+        <div id="status" class="status">Enter a query to begin.</div>
+        <a class="api-link" id="api-link" href="/api/search?q=fastapi&max_results=5" target="_blank" rel="noreferrer">View JSON API</a>
+      </section>
+
+      <section id="results" class="results" aria-label="Search results"></section>
+    </main>
+
+    <template id="result-template">
+      <article class="result-card">
+        <div class="result-body">
+          <p class="source"></p>
+          <h2><a class="title" target="_blank" rel="noreferrer"></a></h2>
+          <p class="snippet"></p>
+        </div>
+        <div class="image-strip"></div>
+      </article>
+    </template>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
