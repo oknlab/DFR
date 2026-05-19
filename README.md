@@ -11,7 +11,7 @@ docker compose up --build
 Open <http://localhost:8000> for the web UI, or query the JSON API directly:
 
 ```bash
-curl 'http://localhost:8000/api/search?q=fastapi&max_results=5&engine=connectnet'
+curl 'http://localhost:8000/api/search?q=fastapi&max_results=5&engine=connectnet&crawl=true&lang=en-US&safe=moderate'
 ```
 
 ## Endpoints
@@ -35,3 +35,8 @@ Each configured engine must accept `q` and `format=json` query parameters and re
 
 ### Level-MAX multi-engine support
 Configure as many engines as needed via environment variables (`*_SEARCH_URL`) and/or `SEARCH_ENGINES_JSON`.
+
+
+### Update-Level-Max API controls
+- `crawl` (bool): enable/disable page crawling for speed-vs-richness.
+- `lang` and `safe`: forwarded to provider as hints for locale and safe-search behavior.

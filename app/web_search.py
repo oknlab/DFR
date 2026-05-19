@@ -219,12 +219,14 @@ async def get_search_context(
     max_results: int = 5,
     redis_client: Optional[AsyncRedis] = None,
     engine_key: str | None = None,
+    crawl_pages: bool = True,
+    extra_params: Optional[dict[str, str]] = None,
 ) -> list[dict]:
-    """Perform a web search, cache the JSON result in Redis, and crawl result pages."""
+    """Perform a web search, optionally crawl results, and cache normalized documents."""
     engine = get_search_engine(engine_key)
     cache_key = None
     if redis_client:
-        query_hash = hashlib.sha256(f"{engine.key}:{query}:{max_results}".encode()).hexdigest()
+        query_hash = hashlib.sha256(f"{engine.key}:{query}:{max_results}:{crawl_pages}:{extra_params}".encode()).hexdigest()
         cache_key = f"search:{query_hash}"
         try:
             cached_result = await redis_client.get(cache_key)
@@ -236,6 +238,8 @@ async def get_search_context(
         logging.info("CACHE MISS for %s search query: '%s'", engine.key, query)
 
     search_params = {"q": query, "format": "json"}
+    if extra_params:
+        search_params.update(extra_params)
 
     try:
         async with httpx.AsyncClient(headers=BROWSER_HEADERS, timeout=20) as client:
@@ -250,10 +254,12 @@ async def get_search_context(
     if not initial_documents:
         return []
 
-    semaphore = asyncio.Semaphore(CONCURRENT_REQUESTS_LIMIT)
-    async with httpx.AsyncClient(headers=BROWSER_HEADERS) as crawl_client:
-        tasks = [crawl_and_extract(crawl_client, doc["url"], semaphore) for doc in initial_documents]
-        crawl_results = await asyncio.gather(*tasks)
+    crawl_results = [{"content": "", "images": []} for _ in initial_documents]
+    if crawl_pages:
+        semaphore = asyncio.Semaphore(CONCURRENT_REQUESTS_LIMIT)
+        async with httpx.AsyncClient(headers=BROWSER_HEADERS) as crawl_client:
+            tasks = [crawl_and_extract(crawl_client, doc["url"], semaphore) for doc in initial_documents]
+            crawl_results = await asyncio.gather(*tasks)
 
     final_documents = []
     for doc, crawled in zip(initial_documents, crawl_results):
@@ -265,7 +271,7 @@ async def get_search_context(
                     "url": doc["url"],
                     "source_name": doc["source_name"],
                     "content": content,
-                    "images": crawled.get("images", []),
+                    "images": crawled.get("images", []) if crawl_pages else [],
                     "engine": engine.key,
                 }
             )

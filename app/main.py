@@ -1,7 +1,7 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -81,6 +81,9 @@ async def search(
     q: Annotated[str, Query(min_length=1, max_length=200, description="Search query")],
     max_results: Annotated[int, Query(ge=1, le=MAX_RESULTS_LIMIT)] = 5,
     engine: Annotated[str, Query(description="Search engine key")] = DEFAULT_ENGINE_KEY,
+    crawl: Annotated[bool, Query(description="Crawl each result URL for richer content")] = True,
+    lang: Annotated[Optional[str], Query(description="Language/locale hint for provider, e.g. en-US")] = None,
+    safe: Annotated[Optional[str], Query(description="Safe-search hint for provider")] = None,
 ):
     query = q.strip()
     if not query:
@@ -91,15 +94,25 @@ async def search(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    extra_params = {}
+    if lang:
+        extra_params["lang"] = lang
+    if safe:
+        extra_params["safe"] = safe
+
     results = await get_search_context(
         query=query,
         max_results=max_results,
         redis_client=app.state.redis,
         engine_key=selected_engine.key,
+        crawl_pages=crawl,
+        extra_params=extra_params or None,
     )
     return {
         "query": query,
         "engine": selected_engine.public_dict(),
         "count": len(results),
+        "crawl": crawl,
+        "params": extra_params,
         "results": results,
     }
