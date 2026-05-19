@@ -27,6 +27,21 @@ GOOGLE_CSE_URL = "https://cse.google.com/cse?cx=014662525286492529401%3A2upbuo2q
 CONCURRENT_REQUESTS_LIMIT = 5
 SEARCH_CACHE_TTL = 3600  # Cache search results for 1 hour
 
+ENGINE_ENV_MAPPINGS = [
+    ("searxng", "SearXNG", "SEARXNG_SEARCH_URL", "SearXNG JSON endpoint"),
+    ("google", "Google JSON", "GOOGLE_SEARCH_URL", "Google-compatible JSON endpoint"),
+    ("bing", "Bing JSON", "BING_SEARCH_URL", "Bing-compatible JSON endpoint"),
+    ("duckduckgo", "DuckDuckGo JSON", "DUCKDUCKGO_SEARCH_URL", "DuckDuckGo-compatible JSON endpoint"),
+    ("brave", "Brave JSON", "BRAVE_SEARCH_URL", "Brave-compatible JSON endpoint"),
+    ("yahoo", "Yahoo JSON", "YAHOO_SEARCH_URL", "Yahoo-compatible JSON endpoint"),
+    ("yandex", "Yandex JSON", "YANDEX_SEARCH_URL", "Yandex-compatible JSON endpoint"),
+    ("baidu", "Baidu JSON", "BAIDU_SEARCH_URL", "Baidu-compatible JSON endpoint"),
+    ("ecosia", "Ecosia JSON", "ECOSIA_SEARCH_URL", "Ecosia-compatible JSON endpoint"),
+    ("qwant", "Qwant JSON", "QWANT_SEARCH_URL", "Qwant-compatible JSON endpoint"),
+    ("startpage", "Startpage JSON", "STARTPAGE_SEARCH_URL", "Startpage-compatible JSON endpoint"),
+    ("mojeek", "Mojeek JSON", "MOJEEK_SEARCH_URL", "Mojeek-compatible JSON endpoint"),
+]
+
 
 @dataclass(frozen=True)
 class SearchEngine:
@@ -65,13 +80,15 @@ def _load_search_engines() -> dict[str, SearchEngine]:
     }
     """
     engines = dict(DEFAULT_SEARCH_ENGINES)
-    searxng_url = os.getenv("SEARXNG_SEARCH_URL")
-    if searxng_url:
-        engines["searxng"] = SearchEngine(
-            key="searxng",
-            name="SearXNG compatible",
-            url=searxng_url,
-            description="JSON-capable SearXNG endpoint from SEARXNG_SEARCH_URL",
+    for key, name, env_var, description in ENGINE_ENV_MAPPINGS:
+        configured_url = os.getenv(env_var)
+        if not configured_url:
+            continue
+        engines[key] = SearchEngine(
+            key=key,
+            name=name,
+            url=configured_url,
+            description=f"{description} from {env_var}",
         )
 
     raw_config = os.getenv("SEARCH_ENGINES_JSON")

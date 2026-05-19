@@ -8,7 +8,6 @@
   </head>
   <body>
     <header class="topbar" aria-label="Utility navigation">
-      <a href="/api/engines" target="_blank" rel="noreferrer">Engines API</a>
       <a href="/health" target="_blank" rel="noreferrer">Health</a>
     </header>
 
@@ -19,8 +18,7 @@
           <span class="blue">S</span><span class="green">e</span><span class="red">a</span><span class="yellow">r</span><span class="blue">c</span><span class="green">h</span>
         </div>
         <h1 id="page-title" class="sr-only">DFR Search</h1>
-        <p class="tagline">A clean Google-style search page powered by FastAPI, Redis, and pluggable JSON search engines.</p>
-
+        
         <form id="search-form" class="search-form">
           <div class="search-box">
             <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3a6.5 6.5 0 0 1 5.16 10.45l4.45 4.44-1.42 1.42-4.44-4.45A6.5 6.5 0 1 1 9.5 3Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" /></svg>
@@ -28,21 +26,8 @@
             <input id="query" name="q" type="search" placeholder="Search the web" autocomplete="off" required autofocus />
           </div>
 
-          <div class="controls">
-            <label class="control-label" for="engine">Search engine</label>
-            <select id="engine" name="engine">
-              {% for engine in engines %}
-                <option value="{{ engine.key }}" {% if engine.key == default_engine %}selected{% endif %}>{{ engine.name }}</option>
-              {% endfor %}
-            </select>
-
-            <label class="control-label" for="max-results">Results</label>
-            <select id="max-results" name="max_results">
-              <option value="3">3</option>
-              <option value="5" selected>5</option>
-              <option value="10">10</option>
-            </select>
-          </div>
+          <input id="engine" name="engine" type="hidden" value="{{ default_engine }}" />
+          <input id="max-results" name="max_results" type="hidden" value="5" />
 
           <div class="actions">
             <button type="submit">Search</button>

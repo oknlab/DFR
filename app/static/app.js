@@ -83,7 +83,6 @@ function renderResults(results) {
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const q = queryInput.value.trim();
-  const engineName = engineInput.options[engineInput.selectedIndex].textContent;
 
   if (!q) {
     setStatus('Please enter a search query.', 'error');
@@ -92,7 +91,7 @@ form.addEventListener('submit', async (event) => {
   }
 
   updateApiLink();
-  setStatus(`Searching ${engineName} for “${q}”…`, 'loading');
+  setStatus(`Searching for “${q}”…`, 'loading');
   resultsBox.replaceChildren();
 
   try {
@@ -104,7 +103,7 @@ form.addEventListener('submit', async (event) => {
     const payload = await response.json();
     renderResults(payload.results || []);
     setStatus(
-      `Found ${payload.count} result${payload.count === 1 ? '' : 's'} for “${payload.query}” on ${payload.engine.name}.`,
+      `Found ${payload.count} result${payload.count === 1 ? '' : 's'} for “${payload.query}”.`,
       'success',
     );
   } catch (error) {
@@ -112,7 +111,7 @@ form.addEventListener('submit', async (event) => {
   }
 });
 
-for (const field of [queryInput, engineInput, maxResultsInput]) {
+for (const field of [queryInput]) {
   field.addEventListener('input', updateApiLink);
   field.addEventListener('change', updateApiLink);
 }

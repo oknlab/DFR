@@ -319,3 +319,5 @@ button:hover,
     width: 100%;
   }
 }
+
+.controls, .control-label { display: none !important; }

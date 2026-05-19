@@ -1,6 +1,6 @@
 # DFR Search Frontend
 
-A FastAPI web frontend for a JSON search API with Redis-backed response caching. The UI uses a simple Google-style search layout while still exposing the data through JSON endpoints.
+A FastAPI web frontend for a JSON search API with Redis-backed response caching and maximum provider extensibility.
 
 ## Run locally
 
@@ -31,3 +31,7 @@ export SEARCH_ENGINES_JSON='{"company":{"name":"Company Search","url":"https://s
 ```
 
 Each configured engine must accept `q` and `format=json` query parameters and return either a `results` array (`url`, `title`, `content`) or an `items` array (`link`, `title`, `snippet`).
+
+
+### Level-MAX multi-engine support
+Configure as many engines as needed via environment variables (`*_SEARCH_URL`) and/or `SEARCH_ENGINES_JSON`.
