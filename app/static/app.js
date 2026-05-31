@@ -2,6 +2,8 @@ const form = document.querySelector('#search-form');
 const queryInput = document.querySelector('#query');
 const engineInput = document.querySelector('#engine');
 const maxResultsInput = document.querySelector('#max-results');
+const hidePromotedInput = document.querySelector('#hide-promoted');
+const sourceTypesInput = document.querySelector('#source-types');
 const statusBox = document.querySelector('#status');
 const resultsBox = document.querySelector('#results');
 const resultTemplate = document.querySelector('#result-template');
@@ -31,6 +33,8 @@ function updateApiLink() {
     q,
     max_results: maxResultsInput.value,
     engine: engineInput.value,
+    hide_promoted: hidePromotedInput.value,
+    source_types: sourceTypesInput.value,
   });
   apiLink.href = `/api/search?${params.toString()}`;
 }
@@ -54,6 +58,7 @@ function renderResults(results) {
     const snippet = card.querySelector('.snippet');
     const imageStrip = card.querySelector('.image-strip');
     const favicon = card.querySelector('.favicon');
+    const anonymousView = card.querySelector('.anonymous-view');
     const host = result.source_name || hostnameFromUrl(result.url);
 
     link.href = result.url;
@@ -62,6 +67,7 @@ function renderResults(results) {
     url.textContent = result.url;
     snippet.textContent = truncate(result.content);
     favicon.textContent = host.slice(0, 1).toUpperCase();
+    anonymousView.href = result.anonymous_url || `/api/anonymous?url=${encodeURIComponent(result.url)}`;
 
     for (const imageUrl of (result.images || []).slice(0, 3)) {
       const image = document.createElement('img');

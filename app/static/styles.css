@@ -321,3 +321,32 @@ button:hover,
 }
 
 .controls, .control-label { display: none !important; }
+
+.privacy-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 28px auto 0;
+  color: var(--green);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.privacy-strip span {
+  border: 1px solid #ceead6;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #f1f8f4;
+}
+
+.anonymous-view {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--green);
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.anonymous-view:hover { text-decoration: underline; }

@@ -4,7 +4,11 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       DEFAULT_SEARCH_ENGINE: connectnet
-      # Add more JSON-capable engines with SEARCH_ENGINES_JSON or SEARXNG_SEARCH_URL.
+      STRICT_PRIVACY_MODE: "true"
+      CACHE_SEARCH_RESULTS: "false"
+      HIDE_PROMOTED_RESULTS: "true"
+      SEARCH_FALLBACK_ENGINE: bing
+      # Add more JSON-capable engines with SEARCH_ENGINES_JSON, *_SEARCH_URL, or SEARCH_BANGS_JSON.
     ports:
       - "8000:8000"
     depends_on:

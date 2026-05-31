@@ -26,8 +26,10 @@
             <input id="query" name="q" type="search" placeholder="Search the web" autocomplete="off" required autofocus />
           </div>
 
-          <input id="engine" name="engine" type="hidden" value="{{ default_engine }}" />
+          <input id="engine" name="engine" type="hidden" value="all" />
           <input id="max-results" name="max_results" type="hidden" value="5" />
+          <input id="hide-promoted" name="hide_promoted" type="hidden" value="true" />
+          <input id="source-types" name="source_types" type="hidden" value="web,docs,images,news,social" />
 
           <div class="actions">
             <button type="submit">Search</button>
@@ -36,8 +38,16 @@
         </form>
       </section>
 
+      <section class="privacy-strip" aria-label="Privacy features">
+        <span>No tracking</span>
+        <span>No profiles</span>
+        <span>No cookies</span>
+        <span>Ad-free</span>
+        <span>Bangs: !w !yt !amazon</span>
+      </section>
+
       <section class="status-panel" aria-live="polite">
-        <div id="status" class="status">Choose an engine and enter a query to begin.</div>
+        <div id="status" class="status">Enter a query or use a bang such as !w, !yt, or !amazon.</div>
       </section>
 
       <section id="results" class="results" aria-label="Search results"></section>
@@ -55,6 +65,7 @@
           </div>
           <h2><a class="title" target="_blank" rel="noreferrer"></a></h2>
           <p class="snippet"></p>
+          <a class="anonymous-view" target="_blank" rel="noreferrer">Anonymous View</a>
         </div>
         <div class="image-strip"></div>
       </article>
