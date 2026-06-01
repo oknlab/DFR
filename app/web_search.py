@@ -5,7 +5,7 @@ import logging
 import os
 from dataclasses import dataclass
 from typing import Optional
-from urllib.parse import quote_plus, urlencode, urljoin, urlparse
+from urllib.parse import quote_plus, urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -332,6 +332,35 @@ def normalize_search_results(
     return initial_documents
 
 
+def build_fallback_search_documents(query: str, max_results: int) -> list[dict]:
+    """Return reliable privacy-friendly search launchers when JSON providers fail."""
+    encoded_query = quote_plus(query)
+    fallback_targets = [
+        ("DuckDuckGo", f"https://duckduckgo.com/?q={encoded_query}", "Search privately with DuckDuckGo."),
+        ("Bing", f"https://www.bing.com/search?q={encoded_query}", "Use Bing as a fallback source."),
+        ("Google", f"https://www.google.com/search?q={encoded_query}", "Open Google results through Anonymous View when configured."),
+        ("Wikipedia", f"https://en.wikipedia.org/w/index.php?search={encoded_query}", "Search documentary/reference results."),
+        ("YouTube", f"https://www.youtube.com/results?search_query={encoded_query}", "Search social/video results."),
+    ]
+    documents = []
+    for name, url, content in fallback_targets[:max_results]:
+        documents.append(
+            {
+                "title": f"Search {name} for {query}",
+                "url": url,
+                "source_name": name.lower(),
+                "content": content,
+                "images": [],
+                "source_type": "web",
+                "promoted": False,
+                "anonymous_url": build_anonymous_url(url),
+                "engine": "fallback-link",
+                "skip_crawl": True,
+            }
+        )
+    return documents
+
+
 def apply_personalized_ranking(documents: list[dict], ranking: dict[str, int]) -> list[dict]:
     """Apply stateless, user-supplied ranking without creating a server-side profile."""
     if not ranking:
@@ -487,13 +516,18 @@ async def get_search_context(
         )
 
     if not initial_documents:
-        return []
+        initial_documents = build_fallback_search_documents(query, max_results)
 
     crawl_results = [{"content": "", "images": []} for _ in initial_documents]
     if crawl_pages:
         semaphore = asyncio.Semaphore(CONCURRENT_REQUESTS_LIMIT)
         async with httpx.AsyncClient(headers=BROWSER_HEADERS, cookies={}) as crawl_client:
-            tasks = [crawl_and_extract(crawl_client, doc["url"], semaphore) for doc in initial_documents]
+            tasks = [
+                crawl_and_extract(crawl_client, doc["url"], semaphore)
+                if not doc.get("skip_crawl")
+                else asyncio.sleep(0, result={"content": "", "images": []})
+                for doc in initial_documents
+            ]
             crawl_results = await asyncio.gather(*tasks)
 
     final_documents = []

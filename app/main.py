@@ -2,10 +2,12 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from typing import Annotated, Optional
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urljoin
 
+import httpx
+from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from redis.asyncio import Redis
@@ -120,14 +122,45 @@ async def privacy():
 
 @app.get("/api/anonymous")
 async def anonymous_view(url: Annotated[str, Query(min_length=1, max_length=2000)]):
+    """Open a URL without exposing the browser directly when no external proxy is configured."""
     if not url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="Anonymous View only supports http(s) URLs")
-    if ANONYMOUS_VIEW_PREFIX.startswith("/"):
-        raise HTTPException(
-            status_code=503,
-            detail="Set ANONYMOUS_VIEW_PREFIX to an external anonymous proxy prefix to enable Anonymous View.",
-        )
-    return RedirectResponse(f"{ANONYMOUS_VIEW_PREFIX}{quote_plus(url)}", status_code=302)
+    if not ANONYMOUS_VIEW_PREFIX.startswith("/"):
+        return RedirectResponse(f"{ANONYMOUS_VIEW_PREFIX}{quote_plus(url)}", status_code=302)
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=20, cookies={}) as client:
+            upstream = await client.get(
+                url,
+                headers={"User-Agent": "DFR-Anonymous-View", "DNT": "1", "Sec-GPC": "1"},
+            )
+            upstream.raise_for_status()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Anonymous View could not fetch the page: {exc}") from exc
+
+    content_type = upstream.headers.get("content-type", "text/html")
+    if "text/html" not in content_type:
+        return Response(content=upstream.content, media_type=content_type)
+
+    soup = BeautifulSoup(upstream.text, "html.parser")
+    for tag in soup(["script", "iframe", "form"]):
+        tag.decompose()
+    if soup.head:
+        base = soup.new_tag("base", href=str(upstream.url))
+        soup.head.insert(0, base)
+    for tag_name, attr in (("a", "href"), ("img", "src"), ("link", "href")):
+        for tag in soup.find_all(tag_name):
+            if tag.get(attr):
+                tag[attr] = urljoin(str(upstream.url), tag[attr])
+    banner = soup.new_tag("div")
+    banner.string = "Anonymous View: scripts/forms removed, no cookies stored by DFR Search."
+    banner["style"] = (
+        "position:sticky;top:0;z-index:2147483647;padding:10px;"
+        "background:#e6f4ea;color:#137333;font:14px Arial"
+    )
+    if soup.body:
+        soup.body.insert(0, banner)
+    return HTMLResponse(str(soup))
 
 
 @app.get("/api/search")
