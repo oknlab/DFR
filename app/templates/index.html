@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DFR Search</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar" aria-label="Utility navigation">
+      <a href="/health" target="_blank" rel="noreferrer">Health</a>
+    </header>
+
+    <main class="search-shell">
+      <section class="home-panel" aria-labelledby="page-title">
+        <div class="wordmark" aria-label="DFR Search">
+          <span class="blue">D</span><span class="red">F</span><span class="yellow">R</span>
+          <span class="blue">S</span><span class="green">e</span><span class="red">a</span><span class="yellow">r</span><span class="blue">c</span><span class="green">h</span>
+        </div>
+        <h1 id="page-title" class="sr-only">DFR Search</h1>
+        
+        <form id="search-form" class="search-form">
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3a6.5 6.5 0 0 1 5.16 10.45l4.45 4.44-1.42 1.42-4.44-4.45A6.5 6.5 0 1 1 9.5 3Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" /></svg>
+            <label class="sr-only" for="query">Search query</label>
+            <input id="query" name="q" type="search" placeholder="Search the web" autocomplete="off" required autofocus />
+          </div>
+
+          <input id="engine" name="engine" type="hidden" value="all" />
+          <input id="max-results" name="max_results" type="hidden" value="5" />
+          <input id="hide-promoted" name="hide_promoted" type="hidden" value="true" />
+          <input id="source-types" name="source_types" type="hidden" value="web,docs,images,news,social" />
+
+          <div class="actions">
+            <button type="submit">Search</button>
+            <a class="secondary-button" id="api-link" href="/api/search?q=fastapi&max_results=5&engine={{ default_engine }}" target="_blank" rel="noreferrer">JSON API</a>
+          </div>
+        </form>
+      </section>
+
+      <section class="privacy-strip" aria-label="Privacy features">
+        <span>No tracking</span>
+        <span>No profiles</span>
+        <span>No cookies</span>
+        <span>Ad-free</span>
+        <span>Bangs: !w !yt !amazon</span>
+      </section>
+
+      <section class="status-panel" aria-live="polite">
+        <div id="status" class="status">Enter a query or use a bang such as !w, !yt, or !amazon.</div>
+      </section>
+
+      <section id="results" class="results" aria-label="Search results"></section>
+    </main>
+
+    <template id="result-template">
+      <article class="result-card">
+        <div class="result-body">
+          <div class="result-meta">
+            <span class="favicon" aria-hidden="true"></span>
+            <div>
+              <p class="source"></p>
+              <p class="url"></p>
+            </div>
+          </div>
+          <h2><a class="title" target="_blank" rel="noreferrer"></a></h2>
+          <p class="snippet"></p>
+          <a class="anonymous-view" target="_blank" rel="noreferrer">Anonymous View</a>
+        </div>
+        <div class="image-strip"></div>
+      </article>
+    </template>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
