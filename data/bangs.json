@@ -1,0 +1,7 @@
+[
+  {"bang":"!w","name":"Wikipedia","url":"https://en.wikipedia.org/wiki/Special:Search?search={query}","category":"reference"},
+  {"bang":"!yt","name":"YouTube","url":"https://www.youtube.com/results?search_query={query}","category":"video"},
+  {"bang":"!amazon","name":"Amazon","url":"https://www.amazon.com/s?k={query}","category":"shopping"},
+  {"bang":"!gh","name":"GitHub","url":"https://github.com/search?q={query}","category":"code"},
+  {"bang":"!news","name":"Google News","url":"https://news.google.com/search?q={query}","category":"news"}
+]
