@@ -1,4 +1,3 @@
-
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: #020617;
@@ -12,6 +11,249 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  background: #020617;
+}
+
+[v-cloak] {
+  display: none;
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at 10% 10%, rgba(16, 185, 129, 0.22), transparent 28rem),
+    radial-gradient(circle at 82% 0%, rgba(34, 211, 238, 0.18), transparent 24rem),
+    linear-gradient(135deg, #020617 0%, #0f172a 48%, #111827 100%);
+}
+
+.aurora {
+  position: absolute;
+  filter: blur(70px);
+  opacity: 0.42;
+  border-radius: 9999px;
+}
+
+.aurora-one {
+  left: -8rem;
+  top: 10rem;
+  height: 22rem;
+  width: 22rem;
+  background: #10b981;
+}
+
+.aurora-two {
+  right: -7rem;
+  top: 3rem;
+  height: 24rem;
+  width: 24rem;
+  background: #22d3ee;
+}
+
+.aurora-three {
+  bottom: 8rem;
+  left: 45%;
+  height: 18rem;
+  width: 18rem;
+  background: #8b5cf6;
+}
+
+.glass-card,
+.hero-card,
+.result-card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.58));
+  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.34);
+  backdrop-filter: blur(22px);
+}
+
+.hero-card {
+  position: relative;
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.58)),
+    radial-gradient(circle at 90% 10%, rgba(52, 211, 153, 0.26), transparent 22rem);
+}
+
+.hero-card::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.16), transparent 34%, rgba(52, 211, 153, 0.16));
+  mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  mask-composite: exclude;
+  padding: 1px;
+}
+
+.control-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.055);
+  padding: 0.85rem;
+  color: #e2e8f0;
+}
+
+.control-tile strong,
+.control-tile small {
+  display: block;
+}
+
+.control-tile strong {
+  color: white;
+  font-size: 0.875rem;
+}
+
+.control-tile small {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.tab-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.055);
+  padding: 0.6rem 0.85rem;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  font-weight: 800;
+  transition: all 180ms ease;
+}
+
+.tab-button:hover,
+.tab-button-active {
+  border-color: rgba(52, 211, 153, 0.38);
+  background: rgba(52, 211, 153, 0.15);
+  color: #d1fae5;
+}
+
+.empty-state {
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.skeleton-card {
+  height: 9.5rem;
+  border-radius: 1.5rem;
+  background: linear-gradient(90deg, rgba(255,255,255,0.05), rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+
+@keyframes shimmer {
+  to { background-position-x: -200%; }
+}
+
+.result-card {
+  border-radius: 1.5rem;
+  padding: 1.25rem;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.result-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(52, 211, 153, 0.32);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.7));
+}
+
+.shadcn-button {
+  display: inline-flex;
+  height: 2.45rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 0.9rem;
+  padding: 0 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 850;
+  transition: all 160ms ease;
+}
+
+.shadcn-button-ghost {
+  color: #dbeafe;
+}
+
+.shadcn-button-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.shadcn-button-secondary {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.shadcn-button-secondary:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.image-card {
+  display: block;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.image-card img {
+  height: 13rem;
+  width: 100%;
+  object-fit: cover;
+  transition: transform 200ms ease;
+}
+
+.image-card:hover img {
+  transform: scale(1.04);
+}
+
+.image-card span {
+  display: block;
+  padding: 0.9rem;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.console-row,
+.rank-row,
+.bang-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+  padding: 0.85rem 0.95rem;
+}
+
+.console-row span,
+.rank-row span {
+  color: #94a3b8;
+  font-size: 0.875rem;
+}
+
+.console-row strong {
+  color: #a7f3d0;
+  font-size: 0.875rem;
+}
+
+.rank-row strong {
+  color: #ddd6fe;
+}
+
+.bang-row {
+  width: 100%;
+  transition: all 160ms ease;
+}
+
+.bang-row:hover {
+  border-color: rgba(52, 211, 153, 0.32);
+  background: rgba(52, 211, 153, 0.09);
 }
 
 .badge-success.badge-outline {
