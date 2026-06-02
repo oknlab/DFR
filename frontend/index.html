@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en" data-theme="oknlab">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>OKNLAB Privacy Search</title>
+    <script>
+      window.tailwind = {
+        config: {
+          theme: {
+            extend: {
+              colors: { oknlab: { ink: '#020617', mint: '#34d399' } },
+            },
+          },
+        },
+      }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.24/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <main class="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.24),_transparent_34rem),linear-gradient(135deg,#020617,#0f172a_48%,#111827)] px-6 py-10 text-white">
+        <section class="mx-auto max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/75 p-8 shadow-2xl shadow-slate-950/40 backdrop-blur">
+          <p class="mb-3 text-sm font-bold uppercase tracking-[0.35em] text-emerald-200">OKNLAB Privacy Search</p>
+          <h1 class="max-w-3xl text-5xl font-black leading-tight tracking-tight">Search without tracking, profiling, cookies, or ads.</h1>
+          <p class="mt-4 max-w-2xl text-lg leading-8 text-slate-300">Loading the Vue 3 search workspace with bangs, multi-source results, anonymous view, and local ranking controls.</p>
+          <div class="mt-8 grid gap-3 sm:grid-cols-3">
+            <span class="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-4 font-semibold text-emerald-100">No tracking</span>
+            <span class="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 font-semibold text-cyan-100">Anonymous proxy</span>
+            <span class="rounded-2xl border border-violet-300/20 bg-violet-300/10 p-4 font-semibold text-violet-100">JSON API</span>
+          </div>
+          <footer class="mt-10 border-t border-white/10 pt-5 text-sm font-semibold text-slate-400">Built by OKNLAB</footer>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
