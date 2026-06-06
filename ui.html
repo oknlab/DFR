@@ -1,805 +1,793 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OKNLAB Search</title>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <style>
-        [v-cloak] { display: none !important; }
-        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
-        .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(-10px); }
-        .slide-enter-active, .slide-leave-active { transition: all 0.4s ease; }
-        .slide-enter-from { opacity: 0; transform: translateY(20px); }
-        .slide-leave-to { opacity: 0; transform: translateY(-20px); }
-        .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
-        @keyframes pulse-dot {
-            0%, 100% { opacity: 0.3; transform: scale(0.8); }
-            50% { opacity: 1; transform: scale(1.2); }
-        }
-        .search-glow:focus { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3), 0 0 20px rgba(99, 102, 241, 0.1); }
-        .result-card { transition: all 0.2s ease; }
-        .result-card:hover { transform: translateX(4px); border-left-color: rgb(99, 102, 241); }
-        .hero-bg {
-            background: radial-gradient(ellipse at 50% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 60%),
-                        radial-gradient(ellipse at 80% 50%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
-        }
-        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-        .privacy-badge { backdrop-filter: blur(10px); }
-        .bang-chip { transition: all 0.15s ease; }
-        .bang-chip:hover { transform: scale(1.05); }
-        .skeleton-line { background: linear-gradient(90deg, hsl(var(--b3)) 25%, hsl(var(--b2)) 50%, hsl(var(--b3)) 75%);
-            background-size: 200% 100%; animation: skeleton-loading 1.5s infinite; }
-        @keyframes skeleton-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-        .anonymous-frame { border: 2px solid rgba(99, 102, 241, 0.3); border-radius: 12px; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: hsl(var(--bc) / 0.2); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: hsl(var(--bc) / 0.3); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OKNSearch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<style>
+  :root{
+    --bg:#0f0f0f;            /* warm near-black canvas */
+    --surface:#161616;       /* cards */
+    --surface-2:#1c1c1c;     /* inputs / kbd */
+    --border:rgba(255,255,255,0.08);
+    --border-strong:rgba(255,255,255,0.14);
+    --text:#ededeb;          /* off-white, never pure white */
+    --text-dim:#8c8c88;      /* muted gray */
+    --text-faint:#5c5c58;
+    --accent:#ededeb;
+    /* muted pastels (dark-tuned) */
+    --pale-red-bg:#2a1a1a;   --pale-red-fg:#e6a6a3;
+    --pale-blue-bg:#16242e;  --pale-blue-fg:#8fc3e6;
+    --pale-green-bg:#172217; --pale-green-fg:#9fc7a2;
+    --pale-yellow-bg:#272014;--pale-yellow-fg:#d9b76a;
+    --sans:'SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif;
+    --serif:'Newsreader','Times New Roman',Georgia,serif;
+    --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+    --ease:cubic-bezier(0.16,1,0.3,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:var(--sans);line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  [v-cloak]{display:none!important}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;cursor:pointer;color:inherit;background:none;border:none}
+  input,select{font-family:inherit}
+  ::selection{background:rgba(237,237,235,0.16)}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
+
+  /* Ambient drift blob behind hero */
+  .ambient{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+  .ambient::before{
+    content:"";position:absolute;top:-20%;left:50%;width:60vw;height:60vw;
+    transform:translateX(-50%);border-radius:50%;
+    background:radial-gradient(circle, rgba(237,237,235,0.04) 0%, transparent 60%);
+    animation:drift 26s ease-in-out infinite alternate;
+  }
+  @keyframes drift{0%{transform:translate(-55%,-2%)}100%{transform:translate(-45%,6%)}}
+
+  .wrap{position:relative;z-index:1}
+  .container{max-width:880px;margin:0 auto;padding:0 24px}
+  .container-wide{max-width:1080px;margin:0 auto;padding:0 24px}
+
+  /* Header / wordmark */
+  .topbar{
+    position:sticky;top:0;z-index:30;
+    backdrop-filter:blur(12px);background:rgba(15,15,15,0.72);
+    border-bottom:1px solid var(--border);
+  }
+  .topbar-inner{display:flex;align-items:center;gap:16px;height:60px}
+  .wordmark{font-family:var(--serif);font-size:21px;letter-spacing:-0.02em;font-weight:500}
+  .wordmark .light{color:var(--text-dim);font-style:italic}
+  .topbar .spacer{flex:1}
+  .ghost-btn{
+    display:inline-flex;align-items:center;gap:7px;
+    font-size:13px;color:var(--text-dim);padding:7px 10px;border-radius:6px;
+    transition:background .18s var(--ease),color .18s var(--ease);
+  }
+  .ghost-btn:hover{color:var(--text);background:var(--surface-2)}
+  .ico{width:16px;height:16px;flex:none}
+
+  /* Hero */
+  .hero{padding:88px 0 40px;text-align:center;transition:padding .5s var(--ease)}
+  .hero.compact{padding:28px 0 8px}
+  .hero h1{
+    font-family:var(--serif);font-weight:400;letter-spacing:-0.035em;line-height:1.05;
+    font-size:clamp(40px,8vw,72px);
+  }
+  .hero.compact h1{font-size:26px}
+  .hero h1 .light{color:var(--text-dim);font-style:italic}
+  .hero .lede{
+    margin:18px auto 0;max-width:460px;color:var(--text-dim);font-size:15px;line-height:1.6;
+  }
+
+  /* Search box */
+  .searchbox{position:relative;max-width:660px;margin:30px auto 0}
+  .searchbar{
+    display:flex;align-items:center;gap:8px;
+    background:var(--surface);border:1px solid var(--border-strong);
+    border-radius:12px;padding:6px 6px 6px 16px;
+    transition:border-color .2s var(--ease),box-shadow .2s var(--ease);
+  }
+  .searchbar:focus-within{border-color:rgba(237,237,235,0.28);box-shadow:0 2px 18px rgba(0,0,0,0.35)}
+  .searchbar .si{color:var(--text-faint)}
+  .searchbar input{
+    flex:1;background:none;border:none;outline:none;color:var(--text);
+    font-size:16px;padding:12px 4px;
+  }
+  .searchbar input::placeholder{color:var(--text-faint)}
+  .bang-tag{
+    font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;
+    color:var(--pale-blue-fg);background:var(--pale-blue-bg);
+    padding:4px 9px;border-radius:9999px;white-space:nowrap;
+  }
+  .icon-btn{
+    width:34px;height:34px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;
+    color:var(--text-dim);transition:background .18s var(--ease),color .18s var(--ease);
+  }
+  .icon-btn:hover{background:var(--surface-2);color:var(--text)}
+  .cta{
+    background:var(--text);color:var(--bg);
+    font-size:14px;font-weight:500;padding:11px 20px;border-radius:8px;
+    transition:transform .12s var(--ease),opacity .18s var(--ease);white-space:nowrap;
+  }
+  .cta:hover{opacity:.88}
+  .cta:active{transform:scale(.98)}
+  .cta:disabled{opacity:.5;cursor:default}
+
+  /* Suggestions */
+  .suggest{
+    position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:20;
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;
+    box-shadow:0 8px 30px rgba(0,0,0,0.4);
+  }
+  .suggest button{
+    display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+    padding:12px 16px;font-size:14px;color:var(--text);transition:background .15s var(--ease);
+  }
+  .suggest button:hover{background:var(--surface-2)}
+  .suggest .si{color:var(--text-faint)}
+
+  /* Bang chips */
+  .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:22px}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;color:var(--text-dim);
+    transition:border-color .18s var(--ease),color .18s var(--ease),background .18s var(--ease);
+  }
+  .chip:hover{border-color:var(--border-strong);color:var(--text);background:var(--surface)}
+  .chip code{font-family:var(--mono);font-size:12px;color:var(--text)}
+
+  /* Source tabs */
+  .tabs{display:flex;align-items:center;gap:4px;margin-top:24px;overflow-x:auto;padding-bottom:2px}
+  .tab{
+    display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+    font-size:13px;color:var(--text-dim);padding:8px 12px;border-radius:8px;
+    transition:background .18s var(--ease),color .18s var(--ease);
+  }
+  .tab:hover{color:var(--text)}
+  .tab.active{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+  .tab .ico{color:currentColor}
+
+  /* Results meta */
+  .meta-row{display:flex;align-items:center;justify-content:space-between;margin:28px 0 16px;gap:16px}
+  .meta-txt{font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:0.01em}
+  .toggle-lbl{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);cursor:pointer}
+  .switch{position:relative;width:34px;height:18px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:9999px;transition:background .2s var(--ease)}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;background:var(--text-dim);border-radius:50%;transition:transform .2s var(--ease),background .2s var(--ease)}
+  .switch.on{background:var(--surface);}
+  .switch.on::after{transform:translateX(16px);background:var(--text)}
+
+  /* Result cards */
+  .results{display:flex;flex-direction:column;gap:10px}
+  .card{
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px 24px;
+    transition:border-color .2s var(--ease),box-shadow .2s var(--ease),transform .2s var(--ease);
+  }
+  .card:hover{border-color:var(--border-strong);box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+  .crumb{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .crumb .fav{width:14px;height:14px;border-radius:3px;flex:none;background:var(--surface-2)}
+  .crumb .url{font-family:var(--mono);font-size:11.5px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badge{
+    font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.06em;
+    padding:3px 8px;border-radius:9999px;white-space:nowrap;flex:none;
+  }
+  .badge.neutral{background:var(--surface-2);color:var(--text-dim)}
+  .badge.warn{background:var(--pale-yellow-bg);color:var(--pale-yellow-fg)}
+  .badge.up{background:var(--pale-green-bg);color:var(--pale-green-fg)}
+  .badge.down{background:var(--pale-red-bg);color:var(--pale-red-fg)}
+  .card .title{
+    font-family:var(--serif);font-size:20px;letter-spacing:-0.02em;line-height:1.25;color:var(--text);
+    display:inline-block;margin-bottom:6px;
+  }
+  .card .title:hover{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--text-faint)}
+  .card .snippet{font-size:14px;color:var(--text-dim);line-height:1.6;margin-bottom:14px}
+  .card .snippet mark{background:rgba(143,195,230,0.15);color:var(--pale-blue-fg);border-radius:2px;padding:0 2px}
+  .actions{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+  .act{
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-faint);
+    padding:6px 9px;border-radius:6px;transition:background .15s var(--ease),color .15s var(--ease);
+  }
+  .act:hover{background:var(--surface-2);color:var(--text)}
+  .act.up:hover{color:var(--pale-green-fg)}
+  .act.down:hover{color:var(--pale-red-fg)}
+  .act .ico{width:14px;height:14px}
+
+  /* Image grid */
+  .img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+  .img-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .2s var(--ease)}
+  .img-card:hover{border-color:var(--border-strong)}
+  .img-card .thumb{aspect-ratio:1;background:var(--surface-2);display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .img-card .thumb img{width:100%;height:100%;object-fit:cover}
+  .img-card .cap{padding:10px 12px}
+  .img-card .cap p{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .img-card .cap span{font-family:var(--mono);font-size:11px;color:var(--text-faint)}
+
+  /* Skeleton */
+  .skel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px 24px}
+  .sk-line{height:13px;border-radius:4px;background:linear-gradient(90deg,var(--surface-2) 25%,#222 50%,var(--surface-2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;margin-bottom:10px}
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+  /* Empty */
+  .empty{text-align:center;padding:80px 0}
+  .empty .ico{width:40px;height:40px;color:var(--text-faint);margin:0 auto 16px}
+  .empty h3{font-family:var(--serif);font-size:22px;font-weight:400;color:var(--text-dim)}
+  .empty p{font-size:14px;color:var(--text-faint);margin-top:6px}
+
+  /* Pagination */
+  .pager{display:flex;justify-content:center;gap:8px;margin-top:36px;font-size:13px;color:var(--text-dim)}
+  .pager button{border:1px solid var(--border);border-radius:8px;padding:8px 14px;transition:border-color .18s var(--ease),color .18s var(--ease)}
+  .pager button:hover:not(:disabled){border-color:var(--border-strong);color:var(--text)}
+  .pager button:disabled{opacity:.4;cursor:default}
+  .pager .cur{font-family:var(--mono);padding:8px 14px}
+
+  /* Bento features */
+  .features{padding:56px 0 96px}
+  .features h2{font-family:var(--serif);font-size:13px;text-transform:uppercase;letter-spacing:0.14em;color:var(--text-faint);text-align:center;margin-bottom:32px;font-weight:400;font-style:italic}
+  .bento{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .bento .b{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;transition:border-color .2s var(--ease),transform .2s var(--ease)}
+  .bento .b:hover{border-color:var(--border-strong)}
+  .bento .b .ico{width:22px;height:22px;color:var(--text);margin-bottom:14px}
+  .bento .b h3{font-size:15px;font-weight:500;margin-bottom:6px;letter-spacing:-0.01em}
+  .bento .b p{font-size:13px;color:var(--text-dim);line-height:1.55}
+  .bento .span2{grid-column:span 2}
+
+  /* Footer */
+  footer{border-top:1px solid var(--border);padding:36px 0;margin-top:24px}
+  .foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+  .foot .links{display:flex;gap:18px;font-size:13px;color:var(--text-dim)}
+  .foot .links button:hover{color:var(--text)}
+  .foot .by{font-size:13px;color:var(--text-dim)}
+  .foot .by b{font-family:var(--serif);font-style:italic;color:var(--text);font-weight:500}
+  .foot-note{text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-faint);margin-top:22px;letter-spacing:0.02em}
+
+  /* Modals / drawer */
+  .overlay{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:20px}
+  .overlay.right{justify-content:flex-end;padding:0}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:520px;max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+  .modal.big{max-width:1040px;height:86vh}
+  .drawer{background:var(--bg);border-left:1px solid var(--border);width:100%;max-width:380px;height:100%;overflow-y:auto}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:20px 22px;border-bottom:1px solid var(--border)}
+  .modal-head h3{font-family:var(--serif);font-size:19px;font-weight:400;letter-spacing:-0.01em}
+  .modal-head p{font-size:12.5px;color:var(--text-dim);margin-top:3px}
+  .modal-body{padding:22px;overflow-y:auto}
+  .modal-foot{padding:20px 22px;border-top:1px solid var(--border)}
+  .frame{flex:1;border:none;background:#fff;border-radius:0 0 14px 14px}
+
+  .field-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)}
+  .field-row:last-child{border-bottom:none}
+  .field-row code{font-family:var(--mono);font-size:13px;color:var(--text);background:var(--surface-2);border:1px solid var(--border);padding:3px 8px;border-radius:5px}
+  .field-row .name{font-size:14px;color:var(--text)}
+  .field-row .sub{font-size:12px;color:var(--text-faint);margin-top:2px}
+  .mono-sm{font-family:var(--mono);font-size:12.5px;color:var(--text-dim)}
+
+  .inp{background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:9px 11px;font-size:13px;color:var(--text);outline:none;transition:border-color .18s var(--ease)}
+  .inp:focus{border-color:var(--border-strong)}
+  .inp::placeholder{color:var(--text-faint)}
+  .sel{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:9px 11px;font-size:13px;color:var(--text);outline:none}
+  .add-row{display:flex;gap:8px;margin-top:12px}
+
+  .sec{padding:18px 0;border-bottom:1px solid var(--border)}
+  .sec:last-child{border-bottom:none}
+  .sec h4{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-faint);margin-bottom:14px}
+  .theme-pills{display:flex;flex-wrap:wrap;gap:8px}
+  .theme-pill{font-family:var(--mono);font-size:11px;border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text-dim);transition:all .18s var(--ease)}
+  .theme-pill.active{background:var(--text);color:var(--bg);border-color:var(--text)}
+
+  .range{width:100%;accent-color:var(--text)}
+  .danger{color:var(--pale-red-fg)}
+
+  kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--border-strong);border-radius:4px;background:var(--surface-2);padding:2px 6px;color:var(--text)}
+
+  /* Scroll reveal */
+  .reveal{opacity:0;transform:translateY(12px)}
+  .reveal.in{opacity:1;transform:none;transition:opacity .6s var(--ease),transform .6s var(--ease)}
+
+  @media(max-width:640px){
+    .bento{grid-template-columns:1fr}
+    .bento .span2{grid-column:span 1}
+    .hero{padding:60px 0 32px}
+  }
+</style>
 </head>
-<body class="min-h-screen bg-base-200">
-<div id="app" v-cloak>
-    <!-- Privacy Shield Indicator -->
-    <div class="fixed top-4 right-4 z-50">
-        <div class="privacy-badge bg-base-100/80 rounded-full px-3 py-1.5 flex items-center gap-2 shadow-lg border border-base-300">
-            <div class="w-2 h-2 rounded-full" :class="strictPrivacy ? 'bg-success pulse-dot' : 'bg-warning'"></div>
-            <span class="text-xs font-medium">{{ strictPrivacy ? 'Privacy Shield Active' : 'Standard Mode' }}</span>
+<body>
+<div class="ambient"></div>
+<div id="app" class="wrap" v-cloak>
+
+  <!-- Hero / Search -->
+  <section class="hero" :class="{compact: hasSearched}">
+    <div class="container">
+      <h1>OKN<span class="light">Search</span></h1>
+
+      <div class="searchbox">
+        <div class="searchbar">
+          <svg class="ico si" viewBox="0 0 256 256" fill="currentColor"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg>
+          <input ref="searchInput" v-model="searchQuery"
+                 @keydown.enter="newSearch" @input="onSearchInput"
+                 placeholder="Search privately. Try !w, !gh, !pypi"
+                 autocomplete="off" spellcheck="false">
+          <span v-if="detectedBang" class="bang-tag">{{ detectedBang.name }}</span>
+          <button v-if="searchQuery" class="icon-btn" @click="clearSearch" aria-label="Clear">
+            <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+          </button>
+          <button class="cta" @click="newSearch" :disabled="isLoading">{{ isLoading ? 'Searching' : 'Search' }}</button>
         </div>
+
+        <div v-if="suggestions.length && showSuggestions" class="suggest">
+          <button v-for="(s,i) in suggestions" :key="i" @click="useSuggestion(s)">
+            <svg class="ico si" viewBox="0 0 256 256" fill="currentColor"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg>
+            {{ s }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="hasSearched" class="tabs">
+        <button v-for="src in searchSources" :key="src.id" class="tab" :class="{active: activeSource===src.id}" @click="switchSource(src.id)">
+          <span v-html="src.icon" class="ico"></span>{{ src.label }}
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section v-if="hasSearched" class="container">
+    <div class="meta-row">
+      <span class="meta-txt">
+        <template v-if="!isLoading">
+          {{ filteredResults.length }} results<template v-if="searchMeta.time_ms"> / {{ searchMeta.time_ms }}ms</template><template v-if="searchMeta.provider"> / {{ searchMeta.provider }}</template><template v-if="searchMeta.cached"> / cached</template>
+        </template>
+        <template v-else>searching</template>
+      </span>
+      <label class="toggle-lbl" @click="hidePromoted = !hidePromoted">
+        Hide promoted <span class="switch" :class="{on:hidePromoted}"></span>
+      </label>
     </div>
 
-    <!-- Anonymous View Modal -->
-    <div v-if="anonymousViewUrl" class="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4" @click.self="anonymousViewUrl = null">
-        <div class="bg-base-100 rounded-2xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl">
-            <div class="flex items-center justify-between p-4 border-b border-base-300">
-                <div class="flex items-center gap-3">
-                    <div class="badge badge-primary badge-outline gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                        Anonymous View
-                    </div>
-                    <span class="text-xs opacity-60 max-w-md truncate">{{ anonymousViewUrl }}</span>
-                </div>
-                <button class="btn btn-sm btn-ghost btn-circle" @click="anonymousViewUrl = null">✕</button>
-            </div>
-            <div class="flex-1 overflow-hidden p-2">
-                <iframe :src="'/api/proxy?url=' + encodeURIComponent(anonymousViewUrl)" class="w-full h-full min-h-[70vh] anonymous-frame bg-white"></iframe>
-            </div>
-        </div>
+    <!-- Skeleton -->
+    <div v-if="isLoading" class="results">
+      <div v-for="i in 5" :key="i" class="skel">
+        <div class="sk-line" style="width:60%"></div>
+        <div class="sk-line" style="width:40%"></div>
+        <div class="sk-line" style="width:100%"></div>
+        <div class="sk-line" style="width:80%;margin-bottom:0"></div>
+      </div>
     </div>
 
-    <!-- Bangs Manager Modal -->
-    <div v-if="showBangsManager" class="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" @click.self="showBangsManager = false">
-        <div class="bg-base-100 rounded-2xl w-full max-w-lg shadow-2xl">
-            <div class="p-6 border-b border-base-300">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-bold">⚡ Bangs Manager</h3>
-                    <button class="btn btn-sm btn-ghost btn-circle" @click="showBangsManager = false">✕</button>
-                </div>
-                <p class="text-sm opacity-60 mt-1">Quick shortcuts to search specific sites</p>
-            </div>
-            <div class="p-6 max-h-80 overflow-y-auto">
-                <div v-for="(bang, key) in bangs" :key="key"
-                     class="flex items-center justify-between py-3 border-b border-base-300/50 last:border-0">
-                    <div class="flex items-center gap-3">
-                        <code class="bg-primary/10 text-primary px-2 py-1 rounded font-bold text-sm">!{{ key }}</code>
-                        <div>
-                            <div class="font-medium text-sm">{{ bang.name }}</div>
-                            <div class="text-xs opacity-50">{{ bang.url }}</div>
-                        </div>
-                    </div>
-                    <button v-if="bang.custom" class="btn btn-xs btn-ghost text-error" @click="removeBang(key)">Remove</button>
-                </div>
-            </div>
-            <div class="p-6 border-t border-base-300">
-                <h4 class="font-semibold text-sm mb-3">Add New Bang</h4>
-                <div class="flex gap-2">
-                    <input v-model="newBang.key" class="input input-sm input-bordered w-20" placeholder="key">
-                    <input v-model="newBang.name" class="input input-sm input-bordered flex-1" placeholder="Name">
-                    <input v-model="newBang.url" class="input input-sm input-bordered flex-1" placeholder="URL with {q}">
-                    <button class="btn btn-sm btn-primary" @click="addBang" :disabled="!newBang.key || !newBang.url">Add</button>
-                </div>
-            </div>
+    <!-- Image grid -->
+    <div v-else-if="activeSource==='images' && filteredResults.length" class="img-grid">
+      <div v-for="(r,idx) in filteredResults" :key="idx" class="img-card reveal" :style="{'--index':idx}">
+        <div class="thumb">
+          <img v-if="r.thumbnail" :src="r.thumbnail" :alt="r.title" loading="lazy">
+          <svg v-else class="ico" style="width:32px;height:32px;color:var(--text-faint)" viewBox="0 0 256 256" fill="currentColor"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM84,76a16,16,0,1,1-16,16A16,16,0,0,1,84,76ZM192,184H64l60-60Z"/></svg>
         </div>
+        <div class="cap">
+          <p>{{ r.title }}</p>
+          <span>{{ extractDomain(r.url) }}</span>
+        </div>
+      </div>
     </div>
 
-    <!-- Ranking Manager Modal -->
-    <div v-if="showRankingManager" class="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" @click.self="showRankingManager = false">
-        <div class="bg-base-100 rounded-2xl w-full max-w-lg shadow-2xl">
-            <div class="p-6 border-b border-base-300">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-bold">⭐ Site Rankings</h3>
-                    <button class="btn btn-sm btn-ghost btn-circle" @click="showRankingManager = false">✕</button>
-                </div>
-                <p class="text-sm opacity-60 mt-1">Manually boost or bury domains (stored locally only)</p>
-            </div>
-            <div class="p-6 max-h-80 overflow-y-auto">
-                <div v-if="Object.keys(siteRankings).length === 0" class="text-center py-8 opacity-50">
-                    <p>No custom rankings yet</p>
-                    <p class="text-xs mt-1">Use the ↑↓ buttons on search results to rank sites</p>
-                </div>
-                <div v-for="(score, domain) in siteRankings" :key="domain"
-                     class="flex items-center justify-between py-2 border-b border-base-300/50">
-                    <span class="text-sm font-mono">{{ domain }}</span>
-                    <div class="flex items-center gap-2">
-                        <span class="badge" :class="score > 0 ? 'badge-success' : score < 0 ? 'badge-error' : 'badge-ghost'">
-                            {{ score > 0 ? '+' : '' }}{{ score }}
-                        </span>
-                        <button class="btn btn-xs btn-ghost text-error" @click="removeRanking(domain)">✕</button>
-                    </div>
-                </div>
-            </div>
+    <!-- List results -->
+    <div v-else-if="filteredResults.length" class="results">
+      <article v-for="(r,idx) in filteredResults" :key="idx" class="card reveal" :style="{'--index':idx}">
+        <div class="crumb">
+          <span class="fav"></span>
+          <span class="url">{{ r.url }}</span>
+          <span v-if="r.promoted" class="badge warn">Promoted</span>
+          <span v-else-if="r.source_type" class="badge neutral">{{ r.source_type }}</span>
         </div>
+        <a :href="r.url" target="_blank" rel="noopener noreferrer" class="title">{{ r.title }}</a>
+        <p class="snippet" v-html="highlightTerms(r.snippet)"></p>
+        <div class="actions">
+          <button class="act" @click="openAnonymous(r.url)">
+            <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96Zm40,116.94V184a8,8,0,0,1-16,0V172.94a24,24,0,1,1,16,0Z"/></svg>
+            Anonymous view
+          </button>
+          <button class="act" @click="copyLink(r.url)">
+            <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"/></svg>
+            {{ copiedUrl===r.url ? 'Copied' : 'Copy' }}
+          </button>
+          <button class="act up" @click="boostSite(r.url)">
+            <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,138.34a8,8,0,0,1-11.32,11.32L136,91.31V224a8,8,0,0,1-16,0V91.31L61.66,149.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0Z"/></svg>
+            Boost
+          </button>
+          <button class="act down" @click="burySite(r.url)">
+            <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,117.66l-72,72a8,8,0,0,1-11.32,0l-72-72a8,8,0,0,1,11.32-11.32L120,164.69V32a8,8,0,0,1,16,0V164.69l58.34-58.35a8,8,0,0,1,11.32,11.32Z"/></svg>
+            Bury
+          </button>
+          <span style="flex:1"></span>
+          <span v-if="getSiteRanking(r.url)!==0" class="badge" :class="getSiteRanking(r.url)>0 ? 'up':'down'">
+            {{ getSiteRanking(r.url)>0 ? '+' : '' }}{{ getSiteRanking(r.url) }}
+          </span>
+        </div>
+      </article>
     </div>
 
-    <!-- Settings Drawer -->
-    <div v-if="showSettings" class="fixed inset-0 z-30 bg-black/50 flex justify-end" @click.self="showSettings = false">
-        <div class="bg-base-100 w-full max-w-sm h-full overflow-y-auto shadow-2xl">
-            <div class="p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-bold">⚙️ Settings</h3>
-                    <button class="btn btn-sm btn-ghost btn-circle" @click="showSettings = false">✕</button>
-                </div>
-
-                <div class="space-y-6">
-                    <!-- Privacy Section -->
-                    <div class="space-y-3">
-                        <h4 class="font-semibold text-sm uppercase tracking-wider opacity-60">Privacy</h4>
-                        <label class="flex items-center justify-between cursor-pointer">
-                            <div>
-                                <div class="font-medium text-sm">Strict Privacy Mode</div>
-                                <div class="text-xs opacity-50">No IP, no cookies, no tracking</div>
-                            </div>
-                            <input type="checkbox" class="toggle toggle-success toggle-sm" v-model="strictPrivacy">
-                        </label>
-                        <label class="flex items-center justify-between cursor-pointer">
-                            <div>
-                                <div class="font-medium text-sm">Hide Promoted Results</div>
-                                <div class="text-xs opacity-50">Filter out ads and sponsored content</div>
-                            </div>
-                            <input type="checkbox" class="toggle toggle-primary toggle-sm" v-model="hidePromoted">
-                        </label>
-                    </div>
-
-                    <!-- Search Sources -->
-                    <div class="space-y-3">
-                        <h4 class="font-semibold text-sm uppercase tracking-wider opacity-60">Fallback Provider</h4>
-                        <select class="select select-bordered select-sm w-full" v-model="fallbackProvider">
-                            <option value="independent">Independent Index Only</option>
-                            <option value="bing">Bing Fallback</option>
-                            <option value="google_proxy">Google via Proxy</option>
-                            <option value="duckduckgo">DuckDuckGo</option>
-                        </select>
-                    </div>
-
-                    <!-- Results Per Page -->
-                    <div class="space-y-3">
-                        <h4 class="font-semibold text-sm uppercase tracking-wider opacity-60">Results Per Page</h4>
-                        <input type="range" min="5" max="50" v-model.number="resultsPerPage" class="range range-sm range-primary">
-                        <div class="text-center text-sm opacity-70">{{ resultsPerPage }} results</div>
-                    </div>
-
-                    <!-- Theme -->
-                    <div class="space-y-3">
-                        <h4 class="font-semibold text-sm uppercase tracking-wider opacity-60">Theme</h4>
-                        <div class="flex gap-2 flex-wrap">
-                            <button v-for="t in themes" :key="t" class="btn btn-xs"
-                                    :class="theme === t ? 'btn-primary' : 'btn-ghost'" @click="setTheme(t)">
-                                {{ t }}
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Safe Search -->
-                    <div class="space-y-3">
-                        <h4 class="font-semibold text-sm uppercase tracking-wider opacity-60">Safe Search</h4>
-                        <select class="select select-bordered select-sm w-full" v-model="safeSearch">
-                            <option value="off">Off</option>
-                            <option value="moderate">Moderate</option>
-                            <option value="strict">Strict</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- Empty -->
+    <div v-else class="empty">
+      <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></svg>
+      <h3>Nothing turned up</h3>
+      <p>Try different keywords, or switch the source tab above.</p>
     </div>
 
-    <!-- Main Content -->
-    <div class="min-h-screen flex flex-col">
-
-        <!-- Hero / Search Area -->
-        <div class="hero-bg" :class="hasSearched ? 'py-6' : 'py-20 lg:py-32'">
-            <div class="max-w-3xl mx-auto px-4 transition-all duration-500">
-
-                <!-- Logo -->
-                <div class="text-center mb-8" :class="hasSearched ? 'mb-4' : 'mb-10'">
-                    <h1 class="font-black tracking-tight transition-all duration-500"
-                        :class="hasSearched ? 'text-2xl' : 'text-5xl lg:text-6xl'">
-                        <span class="text-primary">OKNLAB</span>
-                        <span class="opacity-80"> Search</span>
-                    </h1>
-                    <p v-if="!hasSearched" class="mt-3 text-sm opacity-60 max-w-md mx-auto">
-                        Private, ad-free, and transparent. Your search, your rules.
-                    </p>
-
-                    <!-- Privacy Badges -->
-                    <div v-if="!hasSearched" class="flex flex-wrap justify-center gap-2 mt-4">
-                        <div class="badge badge-outline badge-sm gap-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                            No Tracking
-                        </div>
-                        <div class="badge badge-outline badge-sm gap-1">🚫 Ad-Free</div>
-                        <div class="badge badge-outline badge-sm gap-1">🔒 No Cookies</div>
-                        <div class="badge badge-outline badge-sm gap-1">👤 No Profiling</div>
-                        <div class="badge badge-outline badge-sm gap-1">🌐 Anonymous Proxy</div>
-                    </div>
-                </div>
-
-                <!-- Search Box -->
-                <div class="relative">
-                    <div class="flex items-center bg-base-100 rounded-2xl shadow-xl border border-base-300 overflow-hidden
-                                focus-within:border-primary/50 transition-all duration-300"
-                         :class="hasSearched ? 'rounded-xl' : 'rounded-2xl'">
-
-                        <!-- Search Icon -->
-                        <div class="pl-4 pr-2 opacity-50">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                            </svg>
-                        </div>
-
-                        <input
-                            ref="searchInput"
-                            v-model="searchQuery"
-                            @keydown.enter="performSearch"
-                            @input="onSearchInput"
-                            class="flex-1 bg-transparent py-4 px-2 outline-none text-lg search-glow"
-                            :class="hasSearched ? 'py-3 text-base' : 'py-4 text-lg'"
-                            placeholder="Search privately... (try !w, !yt, !amazon)"
-                            autocomplete="off"
-                            spellcheck="false"
-                        >
-
-                        <!-- Bang indicator -->
-                        <div v-if="detectedBang" class="px-2">
-                            <span class="badge badge-primary badge-sm">{{ detectedBang.name }}</span>
-                        </div>
-
-                        <!-- Clear button -->
-                        <button v-if="searchQuery" class="btn btn-ghost btn-sm btn-circle mr-1" @click="clearSearch">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                        </button>
-
-                        <!-- Search button -->
-                        <button class="btn btn-primary mr-2 rounded-xl" :class="hasSearched ? 'btn-sm' : ''" @click="performSearch" :disabled="isLoading">
-                            <span v-if="isLoading" class="loading loading-spinner loading-sm"></span>
-                            <span v-else>Search</span>
-                        </button>
-                    </div>
-
-                    <!-- Suggestions Dropdown -->
-                    <div v-if="suggestions.length > 0 && showSuggestions" class="absolute top-full left-0 right-0 mt-2 bg-base-100 rounded-xl shadow-xl border border-base-300 overflow-hidden z-20">
-                        <button v-for="(s, i) in suggestions" :key="i"
-                                class="w-full text-left px-4 py-3 hover:bg-base-200 transition-colors flex items-center gap-3 text-sm"
-                                @click="useSuggestion(s)">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                            {{ s }}
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Quick Bangs -->
-                <div v-if="!hasSearched" class="flex flex-wrap justify-center gap-2 mt-4">
-                    <button v-for="(bang, key) in defaultBangs" :key="key"
-                            class="bang-chip badge badge-lg badge-ghost gap-1 cursor-pointer hover:badge-primary"
-                            @click="useBangShortcut(key)">
-                        !{{ key }} <span class="opacity-60">{{ bang.name }}</span>
-                    </button>
-                </div>
-
-                <!-- Source Tabs -->
-                <div v-if="hasSearched" class="flex items-center gap-1 mt-4 overflow-x-auto pb-1">
-                    <button v-for="src in searchSources" :key="src.id"
-                            class="btn btn-sm rounded-lg gap-1 whitespace-nowrap"
-                            :class="activeSource === src.id ? 'btn-primary' : 'btn-ghost'"
-                            @click="switchSource(src.id)">
-                        <span>{{ src.icon }}</span>
-                        <span>{{ src.label }}</span>
-                    </button>
-
-                    <div class="flex-1"></div>
-
-                    <button class="btn btn-sm btn-ghost rounded-lg" @click="showBangsManager = true">⚡ Bangs</button>
-                    <button class="btn btn-sm btn-ghost rounded-lg" @click="showRankingManager = true">⭐ Rankings</button>
-                    <button class="btn btn-sm btn-ghost rounded-lg" @click="showSettings = true">⚙️</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Results Area -->
-        <div v-if="hasSearched" class="flex-1 bg-base-200">
-            <div class="max-w-3xl mx-auto px-4 py-6">
-
-                <!-- Results Meta -->
-                <div class="flex items-center justify-between mb-4">
-                    <div class="text-sm opacity-60">
-                        <span v-if="!isLoading">
-                            {{ filteredResults.length }} results
-                            <span v-if="searchMeta.time_ms"> · {{ searchMeta.time_ms }}ms</span>
-                            <span v-if="searchMeta.provider"> · via {{ searchMeta.provider }}</span>
-                        </span>
-                        <span v-else>Searching...</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <span class="text-xs opacity-60">Hide promoted</span>
-                            <input type="checkbox" class="toggle toggle-xs toggle-primary" v-model="hidePromoted">
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Loading Skeleton -->
-                <div v-if="isLoading" class="space-y-4">
-                    <div v-for="i in 5" :key="i" class="bg-base-100 rounded-xl p-5 border border-base-300">
-                        <div class="skeleton-line h-4 w-3/4 rounded mb-3"></div>
-                        <div class="skeleton-line h-3 w-1/2 rounded mb-2"></div>
-                        <div class="skeleton-line h-3 w-full rounded mb-1"></div>
-                        <div class="skeleton-line h-3 w-5/6 rounded"></div>
-                    </div>
-                </div>
-
-                <!-- Image Grid Results -->
-                <div v-else-if="activeSource === 'images' && filteredResults.length > 0" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    <div v-for="(result, idx) in filteredResults" :key="idx"
-                         class="bg-base-100 rounded-xl overflow-hidden border border-base-300 hover:border-primary/50 transition-all cursor-pointer group">
-                        <div class="aspect-square bg-base-300 flex items-center justify-center overflow-hidden">
-                            <img v-if="result.thumbnail" :src="result.thumbnail" :alt="result.title" class="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy">
-                            <span v-else class="text-4xl opacity-30">🖼️</span>
-                        </div>
-                        <div class="p-2">
-                            <p class="text-xs font-medium truncate">{{ result.title }}</p>
-                            <div class="flex items-center gap-1 mt-1">
-                                <span class="text-xs opacity-50 truncate">{{ extractDomain(result.url) }}</span>
-                                <button class="btn btn-xs btn-ghost ml-auto opacity-0 group-hover:opacity-100" @click.stop="openAnonymous(result.url)">🔒</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- List Results -->
-                <div v-else-if="filteredResults.length > 0" class="space-y-3">
-                    <div v-for="(result, idx) in filteredResults" :key="idx"
-                         class="result-card bg-base-100 rounded-xl p-5 border-l-4 border border-base-300 border-l-transparent hover:shadow-lg transition-all">
-
-                        <!-- Promoted badge -->
-                        <div v-if="result.promoted" class="mb-2">
-                            <span class="badge badge-warning badge-xs gap-1">Promoted</span>
-                        </div>
-
-                        <!-- URL breadcrumb -->
-                        <div class="flex items-center gap-2 mb-1">
-                            <img :src="'https://www.google.com/s2/favicons?domain=' + extractDomain(result.url) + '&sz=16'" class="w-4 h-4 rounded" loading="lazy">
-                            <span class="text-xs opacity-50 truncate">{{ result.url }}</span>
-                            <span v-if="result.source_type" class="badge badge-xs badge-ghost">{{ result.source_type }}</span>
-                        </div>
-
-                        <!-- Title -->
-                        <a :href="result.url" target="_blank" rel="noopener noreferrer"
-                           class="text-lg font-semibold text-primary hover:underline block mb-1 leading-snug">
-                            {{ result.title }}
-                        </a>
-
-                        <!-- Snippet -->
-                        <p class="text-sm opacity-70 leading-relaxed mb-3" v-html="highlightTerms(result.snippet)"></p>
-
-                        <!-- Action buttons -->
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <button class="btn btn-xs btn-ghost gap-1 opacity-60 hover:opacity-100" @click="openAnonymous(result.url)">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                                Anonymous View
-                            </button>
-                            <button class="btn btn-xs btn-ghost gap-1 opacity-60 hover:opacity-100" @click="copyLink(result.url)">
-                                📋 Copy
-                            </button>
-                            <button class="btn btn-xs btn-ghost gap-1 opacity-60 hover:opacity-100 text-success" @click="boostSite(result.url)">
-                                ↑ Boost
-                            </button>
-                            <button class="btn btn-xs btn-ghost gap-1 opacity-60 hover:opacity-100 text-error" @click="burySite(result.url)">
-                                ↓ Bury
-                            </button>
-
-                            <div class="flex-1"></div>
-
-                            <!-- Domain ranking indicator -->
-                            <span v-if="getSiteRanking(result.url) !== 0" class="badge badge-sm"
-                                  :class="getSiteRanking(result.url) > 0 ? 'badge-success badge-outline' : 'badge-error badge-outline'">
-                                {{ getSiteRanking(result.url) > 0 ? '↑' : '↓' }} {{ Math.abs(getSiteRanking(result.url)) }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- No Results -->
-                <div v-else-if="!isLoading" class="text-center py-16">
-                    <div class="text-6xl mb-4 opacity-30">🔍</div>
-                    <h3 class="text-lg font-semibold opacity-60">No results found</h3>
-                    <p class="text-sm opacity-40 mt-1">Try different keywords or change your search source</p>
-                </div>
-
-                <!-- Pagination -->
-                <div v-if="filteredResults.length > 0 && totalPages > 1" class="flex justify-center mt-8">
-                    <div class="join">
-                        <button class="join-item btn btn-sm" :disabled="currentPage <= 1" @click="changePage(-1)">«</button>
-                        <button class="join-item btn btn-sm">Page {{ currentPage }} of {{ totalPages }}</button>
-                        <button class="join-item btn btn-sm" :disabled="currentPage >= totalPages" @click="changePage(1)">»</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Features Grid (Home) -->
-        <div v-if="!hasSearched" class="flex-1 bg-base-200 py-12">
-            <div class="max-w-4xl mx-auto px-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div v-for="f in features" :key="f.title" class="bg-base-100 rounded-xl p-5 border border-base-300 hover:border-primary/30 transition-all">
-                        <div class="text-2xl mb-2">{{ f.icon }}</div>
-                        <h3 class="font-semibold text-sm mb-1">{{ f.title }}</h3>
-                        <p class="text-xs opacity-60">{{ f.desc }}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <footer class="bg-base-100 border-t border-base-300 py-6">
-            <div class="max-w-3xl mx-auto px-4">
-                <div class="flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div class="flex items-center gap-3">
-                        <span class="font-black text-lg"><span class="text-primary">OKNLAB</span> Search</span>
-                        <div class="badge badge-ghost badge-sm">v1.0</div>
-                    </div>
-                    <div class="flex items-center gap-4 text-xs opacity-60">
-                        <button class="hover:opacity-100 transition-opacity" @click="showSettings = true">Settings</button>
-                        <button class="hover:opacity-100 transition-opacity" @click="showBangsManager = true">Bangs</button>
-                        <button class="hover:opacity-100 transition-opacity" @click="showRankingManager = true">Rankings</button>
-                    </div>
-                    <div class="text-sm font-semibold opacity-80">
-                        Built by <span class="text-primary font-black">OKNLAB</span>
-                    </div>
-                </div>
-                <div class="text-center mt-4 text-xs opacity-40">
-                    No tracking · No cookies · No personal data storage · No IP logging · Completely ad-free
-                </div>
-            </div>
-        </footer>
+    <div v-if="filteredResults.length && totalPages>1" class="pager">
+      <button :disabled="currentPage<=1" @click="changePage(-1)">Prev</button>
+      <span class="cur">{{ currentPage }} / {{ totalPages }}</span>
+      <button :disabled="currentPage>=totalPages" @click="changePage(1)">Next</button>
     </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container-wide">
+      <div class="foot">
+        <span class="wordmark" style="font-size:17px">OKN<span class="light">Search</span></span>
+        <div class="links">
+          <button @click="showSettings = true">Settings</button>
+          <button @click="showBangsManager = true">Bangs</button>
+          <button @click="showRankingManager = true">Rankings</button>
+        </div>
+        <span class="by">Built by <b>OKNLAB</b></span>
+      </div>
+      <p class="foot-note">no tracking — no cookies — no IP logging — no profiling — ad-free</p>
+    </div>
+  </footer>
+
+  <!-- Anonymous View Modal -->
+  <div v-if="anonymousViewUrl" class="overlay" @click.self="anonymousViewUrl=null">
+    <div class="modal big">
+      <div class="modal-head">
+        <div>
+          <h3>Anonymous view</h3>
+          <p class="mono-sm" style="max-width:560px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ anonymousViewUrl }}</p>
+        </div>
+        <button class="icon-btn" @click="anonymousViewUrl=null">
+          <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <iframe class="frame" :src="'/api/proxy?url=' + encodeURIComponent(anonymousViewUrl)"></iframe>
+    </div>
+  </div>
+
+  <!-- Bangs Manager -->
+  <div v-if="showBangsManager" class="overlay" @click.self="showBangsManager=false">
+    <div class="modal">
+      <div class="modal-head">
+        <div><h3>Bangs</h3><p>Shortcuts to search a specific site directly.</p></div>
+        <button class="icon-btn" @click="showBangsManager=false">
+          <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div v-for="(b,k) in bangs" :key="k" class="field-row">
+          <div style="display:flex;align-items:center;gap:12px">
+            <code>!{{ k }}</code>
+            <div>
+              <div class="name">{{ b.name }}</div>
+              <div class="sub mono-sm">{{ b.url }}</div>
+            </div>
+          </div>
+          <button v-if="b.custom" class="act danger" @click="removeBang(k)">Remove</button>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <h4 class="mono-sm" style="margin-bottom:10px">Add new</h4>
+        <div class="add-row">
+          <input v-model="newBang.key" class="inp" style="width:72px" placeholder="key">
+          <input v-model="newBang.name" class="inp" style="flex:1" placeholder="Name">
+          <input v-model="newBang.url" class="inp" style="flex:1.4" placeholder="https://...{q}">
+          <button class="cta" style="padding:9px 16px" @click="addBang" :disabled="!newBang.key || !newBang.url">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ranking Manager -->
+  <div v-if="showRankingManager" class="overlay" @click.self="showRankingManager=false">
+    <div class="modal">
+      <div class="modal-head">
+        <div><h3>Site rankings</h3><p>Boost or bury domains. Stored only in your browser.</p></div>
+        <button class="icon-btn" @click="showRankingManager=false">
+          <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div v-if="!Object.keys(siteRankings).length" class="empty" style="padding:40px 0">
+          <p class="mono-sm">No custom rankings yet.</p>
+          <p style="font-size:12px;color:var(--text-faint);margin-top:6px">Use Boost / Bury on any result.</p>
+        </div>
+        <div v-for="(score,domain) in siteRankings" :key="domain" class="field-row">
+          <span class="mono-sm" style="color:var(--text)">{{ domain }}</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="badge" :class="score>0?'up':score<0?'down':'neutral'">{{ score>0?'+':'' }}{{ score }}</span>
+            <button class="icon-btn" style="width:28px;height:28px" @click="removeRanking(domain)">
+              <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Drawer -->
+  <div v-if="showSettings" class="overlay right" @click.self="showSettings=false">
+    <div class="drawer">
+      <div class="modal-head">
+        <h3>Settings</h3>
+        <button class="icon-btn" @click="showSettings=false">
+          <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="sec">
+          <h4>Privacy</h4>
+          <label class="field-row" @click="strictPrivacy=!strictPrivacy" style="cursor:pointer">
+            <div><div class="name">Strict privacy mode</div><div class="sub">Rankings never leave your browser</div></div>
+            <span class="switch" :class="{on:strictPrivacy}"></span>
+          </label>
+          <label class="field-row" @click="hidePromoted=!hidePromoted" style="cursor:pointer">
+            <div><div class="name">Hide promoted</div><div class="sub">Filter sponsored results</div></div>
+            <span class="switch" :class="{on:hidePromoted}"></span>
+          </label>
+        </div>
+        <div class="sec">
+          <h4>Fallback provider</h4>
+          <select class="sel" v-model="fallbackProvider">
+            <option value="independent">Independent index only</option>
+            <option value="bing">Bing</option>
+            <option value="google_proxy">Google (proxy)</option>
+            <option value="duckduckgo">DuckDuckGo</option>
+          </select>
+        </div>
+        <div class="sec">
+          <h4>Results per page — {{ resultsPerPage }}</h4>
+          <input class="range" type="range" min="5" max="50" v-model.number="resultsPerPage">
+        </div>
+        <div class="sec">
+          <h4>Safe search</h4>
+          <select class="sel" v-model="safeSearch">
+            <option value="off">Off</option>
+            <option value="moderate">Moderate</option>
+            <option value="strict">Strict</option>
+          </select>
+        </div>
+        <div class="sec">
+          <h4>Shortcuts</h4>
+          <p class="mono-sm" style="line-height:2"><kbd>Enter</kbd> search &nbsp; <kbd>!w</kbd> bang &nbsp; <kbd>Esc</kbd> close</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
-const { createApp, ref, computed, watch, onMounted, nextTick } = Vue;
+const { createApp, ref, computed, nextTick, onMounted } = Vue;
 
 createApp({
-    setup() {
-        // State
-        const searchInput = ref(null);
-        const searchQuery = ref('');
-        const hasSearched = ref(false);
-        const isLoading = ref(false);
-        const results = ref([]);
-        const searchMeta = ref({});
-        const activeSource = ref('web');
-        const currentPage = ref(1);
-        const showSuggestions = ref(false);
-        const suggestions = ref([]);
-        const anonymousViewUrl = ref(null);
-        const showBangsManager = ref(false);
-        const showRankingManager = ref(false);
-        const showSettings = ref(false);
+  setup() {
+    const searchInput = ref(null);
+    const searchQuery = ref('');
+    const hasSearched = ref(false);
+    const isLoading = ref(false);
+    const results = ref([]);
+    const searchMeta = ref({});
+    const activeSource = ref('web');
+    const currentPage = ref(1);
+    const showSuggestions = ref(false);
+    const suggestions = ref([]);
+    const anonymousViewUrl = ref(null);
+    const showBangsManager = ref(false);
+    const showRankingManager = ref(false);
+    const showSettings = ref(false);
+    const copiedUrl = ref(null);
 
-        // Settings
-        const strictPrivacy = ref(true);
-        const hidePromoted = ref(true);
-        const fallbackProvider = ref('bing');
-        const resultsPerPage = ref(20);
-        const safeSearch = ref('moderate');
-        const theme = ref('dark');
-        const themes = ['light', 'dark', 'cyberpunk', 'forest', 'aqua', 'dracula', 'night', 'nord'];
+    const strictPrivacy = ref(true);
+    const hidePromoted = ref(true);
+    const fallbackProvider = ref('bing');
+    const resultsPerPage = ref(20);
+    const safeSearch = ref('moderate');
 
-        // Rankings (stored in localStorage, never sent to server in strict mode)
-        const siteRankings = ref({});
+    const siteRankings = ref({});
 
-        // Bangs
-        const defaultBangs = {
-            w: { name: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Special:Search?search={q}' },
-            yt: { name: 'YouTube', url: 'https://www.youtube.com/results?search_query={q}' },
-            amazon: { name: 'Amazon', url: 'https://www.amazon.com/s?k={q}' },
-            gh: { name: 'GitHub', url: 'https://github.com/search?q={q}' },
-            so: { name: 'StackOverflow', url: 'https://stackoverflow.com/search?q={q}' },
-            r: { name: 'Reddit', url: 'https://www.reddit.com/search/?q={q}' },
-            maps: { name: 'Maps', url: 'https://www.openstreetmap.org/search?query={q}' },
-            npm: { name: 'NPM', url: 'https://www.npmjs.com/search?q={q}' },
-            pypi: { name: 'PyPI', url: 'https://pypi.org/search/?q={q}' },
-        };
-        const bangs = ref({ ...defaultBangs });
-        const newBang = ref({ key: '', name: '', url: '' });
+    const ic = {
+      globe:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M128,24a104,104,0,1,0,104,104A104.11,104.11,0,0,0,128,24Zm88,104a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48ZM40,128a87.61,87.61,0,0,1,3.33-24H81.84a157.44,157.44,0,0,0,0,48H43.33A87.61,87.61,0,0,1,40,128ZM154,88H102a115.11,115.11,0,0,1,26-45A115.27,115.27,0,0,1,154,88Z"/></svg>',
+      image:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM84,76a16,16,0,1,1-16,16A16,16,0,0,1,84,76ZM192,184H64l60-60Z"/></svg>',
+      news:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48ZM112,176H56V120h56Zm88,0H136V160h64Zm0-32H136V128h64Zm0-32H56V96H200Z"/></svg>',
+      chat:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M128,24A104,104,0,0,0,36.18,176.88L24.83,210.93a16,16,0,0,0,20.24,20.24l34.05-11.35A104,104,0,1,0,128,24Z"/></svg>',
+      doc:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM152,88V44l44,44Z"/></svg>',
+      shield:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v58.78c0,89.61,75.82,119.34,91,124.39a15.53,15.53,0,0,0,10,0c15.2-5.05,91-34.78,91-124.39V56A16,16,0,0,0,208,40Z"/></svg>',
+      bolt:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M213.85,125.46l-112,120a8,8,0,0,1-13.69-7l14.66-73.33L45.19,143.49a8,8,0,0,1-3-13l112-120a8,8,0,0,1,13.69,7L153.18,90.9l57.63,21.61a8,8,0,0,1,3,12.95Z"/></svg>',
+      noads:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM40,128a87.61,87.61,0,0,1,20.49-56.2L184.2,195.51A88,88,0,0,1,40,128Zm155.51,56.2L71.8,60.49A88,88,0,0,1,195.51,184.2Z"/></svg>',
+      eye:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M251.77,116.6c-.34-.76-8.52-18.89-26.83-37.2C200.27,54.54,169.13,40,128,40S55.73,54.54,31.06,79.4C12.75,97.71,4.57,115.84,4.23,116.6a12,12,0,0,0,0,22.8c.34.77,8.52,18.9,26.83,37.21,24.67,24.86,55.81,39.39,96.94,39.39s72.27-14.53,96.94-39.39c18.31-18.31,26.49-36.44,26.83-37.21A12,12,0,0,0,251.77,116.6ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z"/></svg>',
+      star:'<svg viewBox="0 0 256 256" fill="currentColor"><path d="M239.18,97.26A16.38,16.38,0,0,0,224.92,86l-59-4.76L143.14,26.15a16.36,16.36,0,0,0-30.27,0L90.11,81.23,31.08,86a16.46,16.46,0,0,0-9.37,28.86l45,38.83L53,211.75a16.38,16.38,0,0,0,24.5,17.82l50.53-31,50.53,31a16.4,16.4,0,0,0,24.5-17.82l-13.76-58.05,45-38.83A16.43,16.43,0,0,0,239.18,97.26Z"/></svg>',
+    };
 
-        const searchSources = [
-            { id: 'web', label: 'Web', icon: '🌐' },
-            { id: 'images', label: 'Images', icon: '🖼️' },
-            { id: 'news', label: 'News', icon: '📰' },
-            { id: 'social', label: 'Social', icon: '💬' },
-            { id: 'docs', label: 'Documents', icon: '📄' },
-        ];
+    const defaultBangs = {
+      w:{name:'Wikipedia',url:'https://en.wikipedia.org/wiki/Special:Search?search={q}'},
+      gh:{name:'GitHub',url:'https://github.com/search?q={q}'},
+      so:{name:'Stack Overflow',url:'https://stackoverflow.com/search?q={q}'},
+      pypi:{name:'PyPI',url:'https://pypi.org/search/?q={q}'},
+      npm:{name:'npm',url:'https://www.npmjs.com/search?q={q}'},
+      maps:{name:'Maps',url:'https://www.openstreetmap.org/search?query={q}'},
+    };
+    const bangs = ref({ ...defaultBangs });
+    const newBang = ref({ key:'', name:'', url:'' });
 
-        const features = [
-            { icon: '🔒', title: 'No Tracking', desc: 'Zero user tracking. We never log your IP or set cookies.' },
-            { icon: '⚡', title: 'Bang Shortcuts', desc: 'Use !w, !yt, !amazon and add your own custom bangs.' },
-            { icon: '🚫', title: 'Ad-Free', desc: 'Completely ad-free results. No sponsored content ever.' },
-            { icon: '👤', title: 'No Profiling', desc: 'No user profiles built. Every search is independent.' },
-            { icon: '🌐', title: 'Anonymous Proxy', desc: 'Open any link through our proxy for full anonymity.' },
-            { icon: '⭐', title: 'Personal Rankings', desc: 'Manually boost or bury domains, stored locally only.' },
-        ];
+    const searchSources = [
+      { id:'web', label:'Web', icon:ic.globe },
+      { id:'images', label:'Images', icon:ic.image },
+      { id:'news', label:'News', icon:ic.news },
+      { id:'social', label:'Social', icon:ic.chat },
+      { id:'docs', label:'Documents', icon:ic.doc },
+    ];
 
-        const detectedBang = computed(() => {
-            const match = searchQuery.value.match(/^!(\w+)\s/);
-            if (match && bangs.value[match[1]]) {
-                return bangs.value[match[1]];
+    const features = [
+      { icon:ic.shield, title:'No tracking', desc:'Your IP is never logged and no cookies are set. Each search stands alone.', wide:true },
+      { icon:ic.bolt, title:'Bang shortcuts', desc:'Jump straight to a site with !w, !gh, !pypi — or define your own.' },
+      { icon:ic.noads, title:'Ad-free', desc:'No sponsored slots, no promoted units. Results are results.' },
+      { icon:ic.eye, title:'Anonymous view', desc:'Open any link through a server-side reader that strips trackers and ads.' },
+      { icon:ic.star, title:'Your rankings', desc:'Boost or bury domains. Preferences stay in your browser, not on a server.', wide:true },
+    ];
+
+    const detectedBang = computed(() => {
+      const m = searchQuery.value.match(/^!(\w+)\s/);
+      return (m && bangs.value[m[1]]) ? bangs.value[m[1]] : null;
+    });
+
+    const filteredResults = computed(() => {
+      let items = results.value.filter(r => {
+        if (hidePromoted.value && r.promoted) return false;
+        if (activeSource.value !== 'web' && r.source_type && r.source_type !== activeSource.value) return false;
+        return true;
+      });
+      items = items.map(r => ({ ...r, _rankBoost: getSiteRanking(r.url) }));
+      items.sort((a,b) => b._rankBoost - a._rankBoost);
+      return items;
+    });
+
+    const totalPages = computed(() => Math.max(1, Math.ceil(filteredResults.value.length / resultsPerPage.value)));
+
+    function extractDomain(url){ try { return new URL(url).hostname.replace('www.',''); } catch { return url; } }
+    function getSiteRanking(url){ return siteRankings.value[extractDomain(url)] || 0; }
+    function boostSite(url){ const d=extractDomain(url); siteRankings.value[d]=(siteRankings.value[d]||0)+1; saveRankings(); }
+    function burySite(url){ const d=extractDomain(url); siteRankings.value[d]=(siteRankings.value[d]||0)-1; saveRankings(); }
+    function removeRanking(domain){ delete siteRankings.value[domain]; siteRankings.value={...siteRankings.value}; saveRankings(); }
+    function saveRankings(){ try{ localStorage.setItem('oknlab_rankings', JSON.stringify(siteRankings.value)); }catch{} }
+    function loadRankings(){ try{ const s=localStorage.getItem('oknlab_rankings'); if(s) siteRankings.value=JSON.parse(s); }catch{} }
+
+    function revealObserve(){
+      nextTick(() => {
+        const els = document.querySelectorAll('.reveal:not(.in)');
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach(e => {
+            if (e.isIntersecting) {
+              const i = parseInt(e.target.style.getPropertyValue('--index') || 0, 10);
+              e.target.style.transitionDelay = (i * 60) + 'ms';
+              e.target.classList.add('in');
+              io.unobserve(e.target);
             }
-            return null;
-        });
-
-        const filteredResults = computed(() => {
-            let items = results.value.filter(r => {
-                if (hidePromoted.value && r.promoted) return false;
-                if (activeSource.value !== 'web' && r.source_type && r.source_type !== activeSource.value) return false;
-                return true;
-            });
-
-            // Apply personalized rankings
-            items = items.map(r => ({
-                ...r,
-                _rankBoost: getSiteRanking(r.url)
-            }));
-            items.sort((a, b) => b._rankBoost - a._rankBoost);
-
-            return items;
-        });
-
-        const totalPages = computed(() => Math.ceil(filteredResults.value.length / resultsPerPage.value));
-
-        function extractDomain(url) {
-            try {
-                return new URL(url).hostname.replace('www.', '');
-            } catch {
-                return url;
-            }
-        }
-
-        function getSiteRanking(url) {
-            const domain = extractDomain(url);
-            return siteRankings.value[domain] || 0;
-        }
-
-        function boostSite(url) {
-            const domain = extractDomain(url);
-            siteRankings.value[domain] = (siteRankings.value[domain] || 0) + 1;
-            saveRankings();
-        }
-
-        function burySite(url) {
-            const domain = extractDomain(url);
-            siteRankings.value[domain] = (siteRankings.value[domain] || 0) - 1;
-            saveRankings();
-        }
-
-        function removeRanking(domain) {
-            delete siteRankings.value[domain];
-            siteRankings.value = { ...siteRankings.value };
-            saveRankings();
-        }
-
-        function saveRankings() {
-            if (!strictPrivacy.value) {
-                localStorage.setItem('oknlab_rankings', JSON.stringify(siteRankings.value));
-            }
-        }
-
-        function loadRankings() {
-            try {
-                const saved = localStorage.getItem('oknlab_rankings');
-                if (saved) siteRankings.value = JSON.parse(saved);
-            } catch {}
-        }
-
-        function setTheme(t) {
-            theme.value = t;
-            document.documentElement.setAttribute('data-theme', t);
-            localStorage.setItem('oknlab_theme', t);
-        }
-
-        async function performSearch() {
-            const query = searchQuery.value.trim();
-            if (!query) return;
-
-            showSuggestions.value = false;
-
-            // Check for bang redirect
-            const bangMatch = query.match(/^!(\w+)\s+(.*)/);
-            if (bangMatch) {
-                const bangKey = bangMatch[1];
-                const bangQuery = bangMatch[2];
-                if (bangs.value[bangKey]) {
-                    const url = bangs.value[bangKey].url.replace('{q}', encodeURIComponent(bangQuery));
-                    if (strictPrivacy.value) {
-                        anonymousViewUrl.value = url;
-                    } else {
-                        window.open(url, '_blank', 'noopener,noreferrer');
-                    }
-                    return;
-                }
-            }
-
-            hasSearched.value = true;
-            isLoading.value = true;
-            currentPage.value = 1;
-
-            try {
-                const payload = {
-                    query: query,
-                    source: activeSource.value,
-                    page: currentPage.value,
-                    per_page: resultsPerPage.value,
-                    safe_search: safeSearch.value,
-                    hide_promoted: hidePromoted.value,
-                    strict_privacy: strictPrivacy.value,
-                    fallback_provider: fallbackProvider.value,
-                    rankings: strictPrivacy.value ? {} : siteRankings.value,
-                };
-
-                const response = await fetch('/api/search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                });
-
-                const data = await response.json();
-                results.value = data.results || [];
-                searchMeta.value = data.meta || {};
-            } catch (err) {
-                console.error('Search failed:', err);
-                results.value = [];
-                searchMeta.value = { error: 'Search failed. Please try again.' };
-            } finally {
-                isLoading.value = false;
-            }
-        }
-
-        async function onSearchInput() {
-            const q = searchQuery.value.trim();
-            if (q.length < 2) {
-                suggestions.value = [];
-                showSuggestions.value = false;
-                return;
-            }
-            try {
-                const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
-                const data = await res.json();
-                suggestions.value = data.suggestions || [];
-                showSuggestions.value = suggestions.value.length > 0;
-            } catch {
-                suggestions.value = [];
-            }
-        }
-
-        function useSuggestion(s) {
-            searchQuery.value = s;
-            showSuggestions.value = false;
-            performSearch();
-        }
-
-        function useBangShortcut(key) {
-            searchQuery.value = `!${key} `;
-            nextTick(() => searchInput.value?.focus());
-        }
-
-        function clearSearch() {
-            searchQuery.value = '';
-            hasSearched.value = false;
-            results.value = [];
-            suggestions.value = [];
-            nextTick(() => searchInput.value?.focus());
-        }
-
-        function switchSource(src) {
-            activeSource.value = src;
-            if (hasSearched.value) performSearch();
-        }
-
-        function changePage(delta) {
-            currentPage.value += delta;
-            performSearch();
-        }
-
-        function openAnonymous(url) {
-            anonymousViewUrl.value = url;
-        }
-
-        function copyLink(url) {
-            navigator.clipboard.writeText(url).catch(() => {});
-        }
-
-        function highlightTerms(text) {
-            if (!text || !searchQuery.value) return text || '';
-            const terms = searchQuery.value.replace(/^!\w+\s+/, '').split(/\s+/).filter(t => t.length > 2);
-            let result = text;
-            terms.forEach(term => {
-                const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-                result = result.replace(regex, '<mark class="bg-primary/20 text-primary rounded px-0.5">$1</mark>');
-            });
-            return result;
-        }
-
-        function addBang() {
-            if (!newBang.value.key || !newBang.value.url) return;
-            bangs.value[newBang.value.key] = {
-                name: newBang.value.name || newBang.value.key,
-                url: newBang.value.url,
-                custom: true
-            };
-            localStorage.setItem('oknlab_bangs', JSON.stringify(
-                Object.fromEntries(Object.entries(bangs.value).filter(([, v]) => v.custom))
-            ));
-            newBang.value = { key: '', name: '', url: '' };
-        }
-
-        function removeBang(key) {
-            delete bangs.value[key];
-            bangs.value = { ...bangs.value };
-            localStorage.setItem('oknlab_bangs', JSON.stringify(
-                Object.fromEntries(Object.entries(bangs.value).filter(([, v]) => v.custom))
-            ));
-        }
-
-        function loadCustomBangs() {
-            try {
-                const saved = localStorage.getItem('oknlab_bangs');
-                if (saved) {
-                    const custom = JSON.parse(saved);
-                    Object.entries(custom).forEach(([key, val]) => {
-                        bangs.value[key] = { ...val, custom: true };
-                    });
-                }
-            } catch {}
-        }
-
-        onMounted(() => {
-            loadRankings();
-            loadCustomBangs();
-            const savedTheme = localStorage.getItem('oknlab_theme');
-            if (savedTheme) setTheme(savedTheme);
-            searchInput.value?.focus();
-
-            // Close suggestions on click outside
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('.relative')) showSuggestions.value = false;
-            });
-        });
-
-        return {
-            searchInput, searchQuery, hasSearched, isLoading, results, searchMeta,
-            activeSource, currentPage, showSuggestions, suggestions, anonymousViewUrl,
-            showBangsManager, showRankingManager, showSettings,
-            strictPrivacy, hidePromoted, fallbackProvider, resultsPerPage, safeSearch,
-            theme, themes, siteRankings, bangs, defaultBangs, newBang,
-            searchSources, features, detectedBang, filteredResults, totalPages,
-            extractDomain, getSiteRanking, boostSite, burySite, removeRanking,
-            setTheme, performSearch, onSearchInput, useSuggestion, useBangShortcut,
-            clearSearch, switchSource, changePage, openAnonymous, copyLink,
-            highlightTerms, addBang, removeBang, saveRankings,
-        };
+          });
+        }, { threshold: 0.08 });
+        els.forEach(el => io.observe(el));
+      });
     }
+
+    async function performSearch(){
+      const query = searchQuery.value.trim();
+      if(!query) return;
+      showSuggestions.value = false;
+
+      const bm = query.match(/^!(\w+)\s+(.*)/);
+      if(bm && bangs.value[bm[1]]){
+        const url = bangs.value[bm[1]].url.replace('{q}', encodeURIComponent(bm[2]));
+        if(strictPrivacy.value) anonymousViewUrl.value = url;
+        else window.open(url,'_blank','noopener,noreferrer');
+        return;
+      }
+
+      hasSearched.value = true;
+      isLoading.value = true;
+      try {
+        const payload = {
+          query, source:activeSource.value, page:currentPage.value,
+          per_page:resultsPerPage.value, safe_search:safeSearch.value,
+          hide_promoted:hidePromoted.value, strict_privacy:strictPrivacy.value,
+          fallback_provider:fallbackProvider.value,
+          rankings: strictPrivacy.value ? {} : siteRankings.value,
+        };
+        const resp = await fetch('/api/search', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        results.value = data.results || [];
+        searchMeta.value = data.meta || {};
+      } catch(err){
+        console.error('Search failed:', err);
+        results.value = [];
+        searchMeta.value = { error:'Search failed. Please try again.' };
+      } finally {
+        isLoading.value = false;
+        revealObserve();
+      }
+    }
+
+    function newSearch(){ currentPage.value = 1; performSearch(); }
+
+    async function onSearchInput(){
+      const q = searchQuery.value.trim();
+      if(q.length < 2){ suggestions.value=[]; showSuggestions.value=false; return; }
+      try {
+        const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        suggestions.value = data.suggestions || [];
+        showSuggestions.value = suggestions.value.length > 0;
+      } catch { suggestions.value = []; }
+    }
+
+    function useSuggestion(s){ searchQuery.value = s; showSuggestions.value = false; newSearch(); }
+    function useBangShortcut(k){ searchQuery.value = `!${k} `; nextTick(() => searchInput.value?.focus()); }
+    function clearSearch(){ searchQuery.value=''; hasSearched.value=false; results.value=[]; suggestions.value=[]; currentPage.value=1; nextTick(()=>searchInput.value?.focus()); }
+    function switchSource(src){ activeSource.value=src; currentPage.value=1; if(hasSearched.value) performSearch(); }
+    function changePage(d){ currentPage.value += d; performSearch(); }
+    function openAnonymous(url){ anonymousViewUrl.value = url; }
+    function copyLink(url){ navigator.clipboard.writeText(url).then(()=>{ copiedUrl.value=url; setTimeout(()=>copiedUrl.value=null,1400); }).catch(()=>{}); }
+
+    function highlightTerms(text){
+      if(!text || !searchQuery.value) return text || '';
+      const terms = searchQuery.value.replace(/^!\w+\s+/,'').split(/\s+/).filter(t=>t.length>2);
+      let r = text;
+      terms.forEach(term => {
+        const rx = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi');
+        r = r.replace(rx,'<mark>$1</mark>');
+      });
+      return r;
+    }
+
+    function persistBangs(){ try{ localStorage.setItem('oknlab_bangs', JSON.stringify(Object.fromEntries(Object.entries(bangs.value).filter(([,v])=>v.custom)))); }catch{} }
+    function addBang(){
+      if(!newBang.value.key || !newBang.value.url) return;
+      bangs.value[newBang.value.key] = { name:newBang.value.name||newBang.value.key, url:newBang.value.url, custom:true };
+      persistBangs();
+      newBang.value = { key:'', name:'', url:'' };
+    }
+    function removeBang(k){ delete bangs.value[k]; bangs.value={...bangs.value}; persistBangs(); }
+    function loadBangs(){ try{ const s=localStorage.getItem('oknlab_bangs'); if(s){ Object.entries(JSON.parse(s)).forEach(([k,v])=>{ bangs.value[k]={...v,custom:true}; }); } }catch{} }
+
+    onMounted(() => {
+      loadRankings(); loadBangs();
+      searchInput.value?.focus();
+      revealObserve();
+      document.addEventListener('click', e => { if(!e.target.closest('.searchbox')) showSuggestions.value=false; });
+      document.addEventListener('keydown', e => {
+        if(e.key==='Escape'){ anonymousViewUrl.value=null; showBangsManager.value=false; showRankingManager.value=false; showSettings.value=false; }
+      });
+    });
+
+    return {
+      searchInput, searchQuery, hasSearched, isLoading, results, searchMeta,
+      activeSource, currentPage, showSuggestions, suggestions, anonymousViewUrl,
+      showBangsManager, showRankingManager, showSettings, copiedUrl,
+      strictPrivacy, hidePromoted, fallbackProvider, resultsPerPage, safeSearch,
+      siteRankings, bangs, defaultBangs, newBang, searchSources, features,
+      detectedBang, filteredResults, totalPages,
+      extractDomain, getSiteRanking, boostSite, burySite, removeRanking,
+      performSearch, newSearch, onSearchInput, useSuggestion, useBangShortcut,
+      clearSearch, switchSource, changePage, openAnonymous, copyLink, highlightTerms,
+      addBang, removeBang,
+    };
+  }
 }).mount('#app');
 </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a079b80f8cc24193',t:'MTc4MDc3MzA0NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
