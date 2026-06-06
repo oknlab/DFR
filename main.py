@@ -7,9 +7,9 @@ Built by OKNLAB.
 import hashlib
 import json
 import os
+import urllib.parse
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
 
 import redis.asyncio as aioredis
 from fastapi import FastAPI, Request
@@ -17,7 +17,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from web_search import (
-    generate_cache_key,
     get_suggestions,
     proxy_fetch,
     unified_search,
@@ -45,10 +44,9 @@ async def lifespan(app: FastAPI):
             encoding="utf-8",
             decode_responses=True,
             socket_connect_timeout=5,
-            retry_on_timeout=True,
         )
         await redis_client.ping()
-        print(f"[✓] Redis connected: {REDIS_URL}")
+        print(f"[\u2713] Redis connected: {REDIS_URL}")
     except Exception as e:
         print(f"[!] Redis unavailable ({e}), running without cache")
         redis_client = None
@@ -56,8 +54,8 @@ async def lifespan(app: FastAPI):
     yield
 
     if redis_client:
-        await redis_client.close()
-        print("[✓] Redis disconnected")
+        await redis_client.aclose()
+        print("[\u2713] Redis disconnected")
 
 
 # ─── FastAPI App ─────────────────────────────────────────────────────────────
@@ -67,12 +65,11 @@ app = FastAPI(
     description="Private, ad-free search engine. Built by OKNLAB.",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url=None,        # Disable docs for privacy
+    docs_url=None,   # Disable docs for privacy
     redoc_url=None,
     openapi_url=None,
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -85,13 +82,9 @@ app.add_middleware(
 
 @app.middleware("http")
 async def privacy_middleware(request: Request, call_next):
-    """
-    Strip all tracking headers, ensure no cookies are set,
-    never log IP addresses.
-    """
+    """Strip tracking, set privacy headers, never set cookies, never log IPs."""
     response = await call_next(request)
 
-    # Privacy headers
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "no-referrer"
@@ -110,13 +103,10 @@ async def privacy_middleware(request: Request, call_next):
         "frame-src 'self';"
     )
 
-    # NEVER set cookies
     if "set-cookie" in response.headers:
         del response.headers["set-cookie"]
 
-    # No server identification
     response.headers["Server"] = "OKNLAB-Search"
-
     return response
 
 
@@ -143,6 +133,25 @@ async def cache_set(key: str, value: dict, ttl: int = CACHE_TTL):
         pass
 
 
+def _search_cache_key(query: str, source: str, provider: str, page: int) -> str:
+    raw = f"{query}:{source}:{provider}:{page}"
+    return f"search:{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
+
+
+def _apply_rankings(results: list, rankings: dict) -> list:
+    """Apply client-side per-domain boosts and re-sort (rankings never stored)."""
+    if not rankings:
+        return results
+    for r in results:
+        try:
+            domain = urllib.parse.urlparse(r["url"]).netloc.replace("www.", "")
+            r["score"] = r.get("score", 0) + rankings.get(domain, 0) * 2.0
+        except Exception:
+            pass
+    results.sort(key=lambda x: x.get("score", 0), reverse=True)
+    return results
+
+
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
@@ -152,19 +161,12 @@ async def serve_ui():
         content = UI_FILE.read_text(encoding="utf-8")
         return HTMLResponse(content=content, headers={"Cache-Control": "no-store"})
     except FileNotFoundError:
-        return HTMLResponse(
-            content="<h1>OKNLAB Search - UI not found</h1>",
-            status_code=500,
-        )
+        return HTMLResponse(content="<h1>OKNLAB Search - UI not found</h1>", status_code=500)
 
 
 @app.post("/api/search")
 async def search_endpoint(request: Request):
-    """
-    Main search endpoint.
-    Accepts JSON body, returns results.
-    NO IP logging, NO cookies, NO user profiling.
-    """
+    """Main search endpoint. No IP logging, no cookies, no user profiling."""
     try:
         body = await request.json()
     except Exception:
@@ -187,43 +189,32 @@ async def search_endpoint(request: Request):
     per_page = min(int(body.get("per_page", 20)), 50)
     page = max(int(body.get("page", 1)), 1)
 
-    # Rankings (client-provided, NEVER stored server-side)
+    # Rankings are client-provided and NEVER stored server-side.
     rankings = body.get("rankings", {}) if not strict_privacy else {}
 
-    # Check cache
-    cache_key = generate_cache_key(query, source, fallback_provider, page)
+    # Cache key excludes personalized rankings, so cached results are shared.
+    cache_key = _search_cache_key(query, source, fallback_provider, page)
     cached = await cache_get(cache_key)
     if cached:
         cached["meta"]["cached"] = True
-        # Apply rankings even on cached results (rankings are client-side)
         if rankings:
-            import urllib.parse
-            for r in cached.get("results", []):
-                try:
-                    domain = urllib.parse.urlparse(r["url"]).netloc.replace("www.", "")
-                    r["score"] = r.get("score", 0) + rankings.get(domain, 0) * 2.0
-                except Exception:
-                    pass
-            cached["results"].sort(key=lambda x: x.get("score", 0), reverse=True)
+            _apply_rankings(cached.get("results", []), rankings)
         return JSONResponse(cached)
 
-    # Perform search
     result = await unified_search(
         query=query,
         source_type=source,
         hide_promoted=hide_promoted,
         fallback_provider=fallback_provider,
         limit=per_page,
-        rankings=rankings if not strict_privacy else None,
+        page=page,
+        rankings=rankings or None,
+        redis_client=None,  # caching handled here at the API layer
     )
 
-    # Cache (without personalized rankings data)
-    cache_data = {
-        "results": result["results"],
-        "meta": result["meta"],
-    }
-    await cache_set(cache_key, cache_data)
-
+    # Cache the un-personalized payload.
+    await cache_set(cache_key, {"results": result["results"], "meta": result["meta"]})
+    result["meta"]["cached"] = False
     return JSONResponse(result)
 
 
@@ -233,7 +224,6 @@ async def suggest_endpoint(q: str = ""):
     if len(q) < 2:
         return JSONResponse({"suggestions": []})
 
-    # Check cache
     cache_key = f"suggest:{hashlib.sha256(q.encode()).hexdigest()[:12]}"
     cached = await cache_get(cache_key)
     if cached:
@@ -241,27 +231,19 @@ async def suggest_endpoint(q: str = ""):
 
     suggestions = await get_suggestions(q)
     result = {"suggestions": suggestions}
-    await cache_set(cache_key, result, ttl=600)  # 10 min cache
-
+    await cache_set(cache_key, result, ttl=600)
     return JSONResponse(result)
 
 
 @app.get("/api/proxy")
 async def proxy_endpoint(url: str = ""):
-    """
-    Anonymous View proxy.
-    Fetches URL server-side, strips trackers, returns clean content.
-    No user IP or cookies forwarded.
-    """
+    """Anonymous View proxy. Fetches server-side, strips trackers. No IP/cookies forwarded."""
     if not url:
         return Response(content="Missing URL", status_code=400)
-
-    # Validate URL
     if not url.startswith(("http://", "https://")):
         return Response(content="Invalid URL", status_code=400)
 
     result = await proxy_fetch(url)
-
     content = result["content"]
     if isinstance(content, str):
         content = content.encode("utf-8")
@@ -312,21 +294,11 @@ async def config_endpoint():
         "version": "1.0.0",
         "built_by": "OKNLAB",
         "features": [
-            "no_tracking",
-            "no_cookies",
-            "no_ip_logging",
-            "no_user_profiling",
-            "ad_free",
-            "anonymous_proxy_view",
-            "bang_shortcuts",
-            "hide_promoted_results",
-            "personalized_ranking_client_side",
-            "multi_source_search",
-            "independent_index",
-            "bing_fallback",
-            "google_proxy_fallback",
-            "duckduckgo_fallback",
-            "strict_privacy_mode",
+            "no_tracking", "no_cookies", "no_ip_logging", "no_user_profiling",
+            "ad_free", "anonymous_proxy_view", "bang_shortcuts",
+            "hide_promoted_results", "personalized_ranking_client_side",
+            "multi_source_search", "independent_index", "bing_fallback",
+            "google_proxy_fallback", "duckduckgo_fallback", "strict_privacy_mode",
         ],
         "sources": ["web", "images", "news", "social", "docs"],
         "fallback_providers": ["independent", "bing", "google_proxy", "duckduckgo"],
