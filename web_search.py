@@ -55,7 +55,7 @@ BROWSER_HEADERS = {
 }
 
 # Your provided independent search engine.
-CONNECTNET_URL = "https://connectnet.onrender.com/search"
+CONNECTNET_URL = "https://connectnet.onrender.com/search?q="
 
 CONCURRENT_REQUESTS_LIMIT = 5
 SEARCH_CACHE_TTL = 3600  # seconds
