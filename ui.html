@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OKNLAB Search</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        [v-cloak] { display: none !important; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(-10px); }
+        .slide-enter-active, .slide-leave-active { transition: all 0.4s ease; }
+        .slide-enter-from { opacity: 0; transform: translateY(20px); }
+        .slide-leave-to { opacity: 0; transform: translateY(-20px); }
+        .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        .search-glow:focus { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3), 0 0 20px rgba(99, 102, 241, 0.1); }
+        .result-card { transition: all 0.2s ease; }
+        .result-card:hover { transform: translateX(4px); border-left-color: rgb(99, 102, 241); }
+        .hero-bg {
+            background: radial-gradient(ellipse at 50% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 60%),
+                        radial-gradient(ellipse at 80% 50%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
+        }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .privacy-badge { backdrop-filter: blur(10px); }
+        .bang-chip { transition: all 0.15s ease; }
+        .bang-chip:hover { transform: scale(1.05); }
+        .skeleton-line { background: linear-gradient(90deg, hsl(var(--b3)) 25%, hsl(var(--b2)) 50%, hsl(var(--b3)) 75%);
+            background-size: 200% 100%; animation: skeleton-loading 1.5s infinite; }
+        @keyframes skeleton-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .anonymous-frame { border: 2px solid rgba(99, 102, 241, 0.3); border-radius: 12px; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: hsl(var(--bc) / 0.2); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: hsl(var(--bc) / 0.3); }
+    </style>
+</head>
+<body class="min-h-screen bg-base-200">
+<div id="app" v-cloak>
+    <!-- Privacy Shield Indicator -->
+    <div class="fixed top-4 right-4 z-50">
+        <div class="privacy-badge bg-base-100/80 rounded-full px-3 py-1.5 flex items-center gap-2 shadow-lg border border-base-300">
+            <div class="w-2 h-2 rounded-full" :class="strictPrivacy ? 'bg-success pulse-dot' : 'bg-warning'"></div>
+            <span class="text-xs font-medium">{{ strictPrivacy ? 'Privacy Shield Active' : 'Standard Mode' }}</span>
+        </div>
+    </div>
+
+    <!-- Anonymous View Modal -->
+    <div v-if="anonymousViewUrl" class="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4" @click.self="anonymousViewUrl = null">
+        <div class="bg-base-100 rounded-2xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between p-4 border-b border-base-300">
+                <div class="flex items-center gap-3">
+                    <div class="badge badge-primary badge-outline gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        Anonymous View
+                    </div>
+                    <span class="text-xs opacity-60 max-w-md truncate">{{ anonymousViewUrl }}</span>
+                </div>
+                <button class="btn btn-sm btn-ghost btn-circle" @click="anonymousViewUrl = null">✕</button>
+            </div>
+            <div class="flex-1 overflow-hidden p-2">
+                <iframe :src="'/api/proxy?url=' + encodeURIComponent(anonymousViewUrl)" class="w-full h-full min-h-[70vh] anonymous-frame bg-white"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bangs Manager Modal -->
+    <div v-if="showBangsManager" class="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" @click.self="showBangsManager = false">
+        <div class="bg-base-100 rounded-2xl w-full max-w-lg shadow-2xl">
+            <div class="p-6 border-b border-base-300">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-bold">⚡ Bangs Manager</h3>
+                    <button class="btn btn-sm btn-ghost btn-circle" @click="showBangsManager = false">✕</button>
+                </div>
+                <p class="text-sm opacity-60 mt-1">Quick shortcuts to search specific sites</p>
+            </div>
+            <div class="p-6 max-h-80 overflow-y-auto">
+                <div v-for="(bang, key) in bangs" :key="key"
+                     class="flex items-center justify-between py-3 border-b border-base-300/50 last:border-0">
+                    <div class="flex items-center gap-3">
+                        <code class="bg-primary/10 text-primary px-2 py-1 rounded font-bold text-sm">!{{ key }}</code>
+                        <div>
+                            <div class="font-medium text-sm">{{ bang.name }}</div>
+                            <div class="text-xs opacity-50">{{ bang.url }}</div>
+                        </div>
+                    </div>
+                    <button v-if="bang.custom" class="btn btn-xs btn-ghost text-error" @click="removeBang(key)">Remove</button>
+                </div>
+            </div>
+            <div class="p-6 border-t border-base-300">
+                <h4 class="font-semibold text-sm mb-3">Add New Bang</h4>
+                <div class="flex gap-2">
+                    <input v-model="newBang.key" class="input input-sm input-bordered w-20" placeholder="key">
+                    <input v-model="newBang.name" class="input input-sm input-bordered flex-1" placeholder="Name">
+                    <input v-model="newBang.url" class="input input-sm input-bordered flex-1" placeholder="URL with {q}">
+                    <button class="btn btn-sm btn-primary" @click="addBang" :disabled="!newBang.key || !newBang.url">Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ranking Manager Modal -->
+    <div v-if="showRankingManager" class="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" @click.self="showRankingManager = false">
+        <div class="bg-base-100 rounded-2xl w-full max-w-lg shadow-2xl">
+            <div class="p-6 border-b border-base-300">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-bold">⭐ Site Rankings</h3>
+                    <button class="btn btn-sm btn-ghost btn-circle" @click="showRankingManager = false">✕</button>
+                </div>
+                <p class="text-sm opacity-60 mt-1">Manually boost or bury domains (stored locally only)</p>
+            </div>
+            <div class="p-6 max-h-80 overflow-y-auto">
+                <div v-if="Object.keys(siteRankings).length === 0" class="text-center py-8 opacity-50">
+                    <p>No custom rankings yet</p>
+                    <p class="text-xs mt-1">Use the ↑↓ buttons on search results to rank sites</p>
+                </div>
+                <div v-for="(score, domain) in siteRankings" :key="domain"
+                     class="flex items-center justify-between py-2 border-b border-base-300/50">
+                    <span class="text-sm font-mono">{{ domain }}</span>
+                    <div class="flex items-center gap-2">
+                        <span class="badge" :class="score > 0 ? 'badge-success' : score < 0 ? 'badge-error' : 'badge-ghost'">
+                            {{ score > 0 ? '+' : '' }}{{ score }}
+                        </span>
+                        <button class="btn btn-xs btn-ghost text-error" @click="removeRanking(domain)">✕</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Drawer -->
+    <div v-if="showSettings" class="fixed inset-0 z-30 bg-black/50 flex justify-end" @click.self="showSettings = false">
+        <div class="bg-base-100 w-full max-w-sm h-full overflow-y-auto shadow-2xl">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-bold">⚙️ Settings</h3>
+                    <button class="btn btn-sm btn-ghost btn-circle" @click="showSettings = false">✕</button>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Privacy Section -->
+                    <div class="space-y-3">
+                        <h4 class="font-semibold text-sm uppercase tracking-wider opacity-60">Privacy</h4>
+                        <label class="flex items-center justify-between cursor-pointer">
+                            <div>
+                                <div class="font-medium text-sm">Strict Privacy Mode</div>
+                                <div class="text-xs opacity-50">No IP, no cookies, no tracking</div>
+                            </div>
+                            <input type="checkbox" class="toggle toggle-success toggle-sm" v-model="strictPrivacy">
+                        </label>
+                        <label class="flex items-center justify-between cursor-pointer">
+                            <div>
+                                <div class="font-medium text-sm">Hide Promoted Results</div>
+                                <div class="text-xs opacity-50">Filter out ads and sponsored content</div>
+                            </div>
+                            <input type="checkbox" class="toggle toggle-primary toggle-sm" v-model="hidePromoted">
+                        </label>
+                    </div>
+
+                    <!-- Search Sources -->
+                    <div class="space-y-3">
+                        <h4 class="font-semibold text-sm uppercase tracking-wider opacity-60">Fallback Provider</h4>
+                        <select class="select select-bordered select-sm w-full" v-model="fallbackProvider">
+                            <option value="independent">Independent Index Only</option>
+                            <option value="bing">Bing Fallback</option>
+                            <option value="google_proxy">Google via Proxy</option>
+                            <option value="duckduckgo">DuckDuckGo</option>
+                        </select>
+                    </div>
+
+                    <!-- Results Per Page -->
+                    <div class="space-y-3">
+                        <h4 class="font-semibold text-sm uppercase tracking-wider opacity-60">Results Per Page</h4>
+                        <input type="range" min="5" max="50" v-model.number="resultsPerPage" class="range range-sm range-primary">
+                        <div class="text-center text-sm opacity-70">{{ resultsPerPage }} results</div>
+                    </div>
+
+                    <!-- Theme -->
+                    <div class="space-y-3">
+                        <h4 class="font-semibold text-sm uppercase tracking-wider opacity-60">Theme</h4>
+                        <div class="flex gap-2 flex-wrap">
+                            <button v-for="t in themes" :key="t" class="btn btn-xs"
+                                    :class="theme === t ? 'btn-primary' : 'btn-ghost'" @click="setTheme(t)">
+                                {{ t }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Safe Search -->
+                    <div class="space-y-3">
+                        <h4 class="font-semibold text-sm uppercase tracking-wider opacity-60">Safe Search</h4>
+                        <select class="select select-bordered select-sm w-full" v-model="safeSearch">
+                            <option value="off">Off</option>
+                            <option value="moderate">Moderate</option>
+                            <option value="strict">Strict</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="min-h-screen flex flex-col">
+
+        <!-- Hero / Search Area -->
+        <div class="hero-bg" :class="hasSearched ? 'py-6' : 'py-20 lg:py-32'">
+            <div class="max-w-3xl mx-auto px-4 transition-all duration-500">
+
+                <!-- Logo -->
+                <div class="text-center mb-8" :class="hasSearched ? 'mb-4' : 'mb-10'">
+                    <h1 class="font-black tracking-tight transition-all duration-500"
+                        :class="hasSearched ? 'text-2xl' : 'text-5xl lg:text-6xl'">
+                        <span class="text-primary">OKNLAB</span>
+                        <span class="opacity-80"> Search</span>
+                    </h1>
+                    <p v-if="!hasSearched" class="mt-3 text-sm opacity-60 max-w-md mx-auto">
+                        Private, ad-free, and transparent. Your search, your rules.
+                    </p>
+
+                    <!-- Privacy Badges -->
+                    <div v-if="!hasSearched" class="flex flex-wrap justify-center gap-2 mt-4">
+                        <div class="badge badge-outline badge-sm gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                            No Tracking
+                        </div>
+                        <div class="badge badge-outline badge-sm gap-1">🚫 Ad-Free</div>
+                        <div class="badge badge-outline badge-sm gap-1">🔒 No Cookies</div>
+                        <div class="badge badge-outline badge-sm gap-1">👤 No Profiling</div>
+                        <div class="badge badge-outline badge-sm gap-1">🌐 Anonymous Proxy</div>
+                    </div>
+                </div>
+
+                <!-- Search Box -->
+                <div class="relative">
+                    <div class="flex items-center bg-base-100 rounded-2xl shadow-xl border border-base-300 overflow-hidden
+                                focus-within:border-primary/50 transition-all duration-300"
+                         :class="hasSearched ? 'rounded-xl' : 'rounded-2xl'">
+
+                        <!-- Search Icon -->
+                        <div class="pl-4 pr-2 opacity-50">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                        </div>
+
+                        <input
+                            ref="searchInput"
+                            v-model="searchQuery"
+                            @keydown.enter="performSearch"
+                            @input="onSearchInput"
+                            class="flex-1 bg-transparent py-4 px-2 outline-none text-lg search-glow"
+                            :class="hasSearched ? 'py-3 text-base' : 'py-4 text-lg'"
+                            placeholder="Search privately... (try !w, !yt, !amazon)"
+                            autocomplete="off"
+                            spellcheck="false"
+                        >
+
+                        <!-- Bang indicator -->
+                        <div v-if="detectedBang" class="px-2">
+                            <span class="badge badge-primary badge-sm">{{ detectedBang.name }}</span>
+                        </div>
+
+                        <!-- Clear button -->
+                        <button v-if="searchQuery" class="btn btn-ghost btn-sm btn-circle mr-1" @click="clearSearch">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+
+                        <!-- Search button -->
+                        <button class="btn btn-primary mr-2 rounded-xl" :class="hasSearched ? 'btn-sm' : ''" @click="performSearch" :disabled="isLoading">
+                            <span v-if="isLoading" class="loading loading-spinner loading-sm"></span>
+                            <span v-else>Search</span>
+                        </button>
+                    </div>
+
+                    <!-- Suggestions Dropdown -->
+                    <div v-if="suggestions.length > 0 && showSuggestions" class="absolute top-full left-0 right-0 mt-2 bg-base-100 rounded-xl shadow-xl border border-base-300 overflow-hidden z-20">
+                        <button v-for="(s, i) in suggestions" :key="i"
+                                class="w-full text-left px-4 py-3 hover:bg-base-200 transition-colors flex items-center gap-3 text-sm"
+                                @click="useSuggestion(s)">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            {{ s }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Bangs -->
+                <div v-if="!hasSearched" class="flex flex-wrap justify-center gap-2 mt-4">
+                    <button v-for="(bang, key) in defaultBangs" :key="key"
+                            class="bang-chip badge badge-lg badge-ghost gap-1 cursor-pointer hover:badge-primary"
+                            @click="useBangShortcut(key)">
+                        !{{ key }} <span class="opacity-60">{{ bang.name }}</span>
+                    </button>
+                </div>
+
+                <!-- Source Tabs -->
+                <div v-if="hasSearched" class="flex items-center gap-1 mt-4 overflow-x-auto pb-1">
+                    <button v-for="src in searchSources" :key="src.id"
+                            class="btn btn-sm rounded-lg gap-1 whitespace-nowrap"
+                            :class="activeSource === src.id ? 'btn-primary' : 'btn-ghost'"
+                            @click="switchSource(src.id)">
+                        <span>{{ src.icon }}</span>
+                        <span>{{ src.label }}</span>
+                    </button>
+
+                    <div class="flex-1"></div>
+
+                    <button class="btn btn-sm btn-ghost rounded-lg" @click="showBangsManager = true">⚡ Bangs</button>
+                    <button class="btn btn-sm btn-ghost rounded-lg" @click="showRankingManager = true">⭐ Rankings</button>
+                    <button class="btn btn-sm btn-ghost rounded-lg" @click="showSettings = true">⚙️</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Area -->
+        <div v-if="hasSearched" class="flex-1 bg-base-200">
+            <div class="max-w-3xl mx-auto px-4 py-6">
+
+                <!-- Results Meta -->
+                <div class="flex items-center justify-between mb-4">
+                    <div class="text-sm opacity-60">
+                        <span v-if="!isLoading">
+                            {{ filteredResults.length }} results
+                            <span v-if="searchMeta.time_ms"> · {{ searchMeta.time_ms }}ms</span>
+                            <span v-if="searchMeta.provider"> · via {{ searchMeta.provider }}</span>
+                        </span>
+                        <span v-else>Searching...</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <span class="text-xs opacity-60">Hide promoted</span>
+                            <input type="checkbox" class="toggle toggle-xs toggle-primary" v-model="hidePromoted">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Loading Skeleton -->
+                <div v-if="isLoading" class="space-y-4">
+                    <div v-for="i in 5" :key="i" class="bg-base-100 rounded-xl p-5 border border-base-300">
+                        <div class="skeleton-line h-4 w-3/4 rounded mb-3"></div>
+                        <div class="skeleton-line h-3 w-1/2 rounded mb-2"></div>
+                        <div class="skeleton-line h-3 w-full rounded mb-1"></div>
+                        <div class="skeleton-line h-3 w-5/6 rounded"></div>
+                    </div>
+                </div>
+
+                <!-- Image Grid Results -->
+                <div v-else-if="activeSource === 'images' && filteredResults.length > 0" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    <div v-for="(result, idx) in filteredResults" :key="idx"
+                         class="bg-base-100 rounded-xl overflow-hidden border border-base-300 hover:border-primary/50 transition-all cursor-pointer group">
+                        <div class="aspect-square bg-base-300 flex items-center justify-center overflow-hidden">
+                            <img v-if="result.thumbnail" :src="result.thumbnail" :alt="result.title" class="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy">
+                            <span v-else class="text-4xl opacity-30">🖼️</span>
+                        </div>
+                        <div class="p-2">
+                            <p class="text-xs font-medium truncate">{{ result.title }}</p>
+                            <div class="flex items-center gap-1 mt-1">
+                                <span class="text-xs opacity-50 truncate">{{ extractDomain(result.url) }}</span>
+                                <button class="btn btn-xs btn-ghost ml-auto opacity-0 group-hover:opacity-100" @click.stop="openAnonymous(result.url)">🔒</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- List Results -->
+                <div v-else-if="filteredResults.length > 0" class="space-y-3">
+                    <div v-for="(result, idx) in filteredResults" :key="idx"
+                         class="result-card bg-base-100 rounded-xl p-5 border-l-4 border border-base-300 border-l-transparent hover:shadow-lg transition-all">
+
+                        <!-- Promoted badge -->
+                        <div v-if="result.promoted" class="mb-2">
+                            <span class="badge badge-warning badge-xs gap-1">Promoted</span>
+                        </div>
+
+                        <!-- URL breadcrumb -->
+                        <div class="flex items-center gap-2 mb-1">
+                            <img :src="'https://www.google.com/s2/favicons?domain=' + extractDomain(result.url) + '&sz=16'" class="w-4 h-4 rounded" loading="lazy">
+                            <span class="text-xs opacity-50 truncate">{{ result.url }}</span>
+                            <span v-if="result.source_type" class="badge badge-xs badge-ghost">{{ result.source_type }}</span>
+                        </div>
+
+                        <!-- Title -->
+                        <a :href="result.url" target="_blank" rel="noopener noreferrer"
+                           class="text-lg font-semibold text-primary hover:underline block mb-1 leading-snug">
+                            {{ result.title }}
+                        </a>
+
+                        <!-- Snippet -->
+                        <p class="text-sm opacity-70 leading-relaxed mb-3" v-html="highlightTerms(result.snippet)"></p>
+
+                        <!-- Action buttons -->
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button class="btn btn-xs btn-ghost gap-1 opacity-60 hover:opacity-100" @click="openAnonymous(result.url)">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                Anonymous View
+                            </button>
+                            <button class="btn btn-xs btn-ghost gap-1 opacity-60 hover:opacity-100" @click="copyLink(result.url)">
+                                📋 Copy
+                            </button>
+                            <button class="btn btn-xs btn-ghost gap-1 opacity-60 hover:opacity-100 text-success" @click="boostSite(result.url)">
+                                ↑ Boost
+                            </button>
+                            <button class="btn btn-xs btn-ghost gap-1 opacity-60 hover:opacity-100 text-error" @click="burySite(result.url)">
+                                ↓ Bury
+                            </button>
+
+                            <div class="flex-1"></div>
+
+                            <!-- Domain ranking indicator -->
+                            <span v-if="getSiteRanking(result.url) !== 0" class="badge badge-sm"
+                                  :class="getSiteRanking(result.url) > 0 ? 'badge-success badge-outline' : 'badge-error badge-outline'">
+                                {{ getSiteRanking(result.url) > 0 ? '↑' : '↓' }} {{ Math.abs(getSiteRanking(result.url)) }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- No Results -->
+                <div v-else-if="!isLoading" class="text-center py-16">
+                    <div class="text-6xl mb-4 opacity-30">🔍</div>
+                    <h3 class="text-lg font-semibold opacity-60">No results found</h3>
+                    <p class="text-sm opacity-40 mt-1">Try different keywords or change your search source</p>
+                </div>
+
+                <!-- Pagination -->
+                <div v-if="filteredResults.length > 0 && totalPages > 1" class="flex justify-center mt-8">
+                    <div class="join">
+                        <button class="join-item btn btn-sm" :disabled="currentPage <= 1" @click="changePage(-1)">«</button>
+                        <button class="join-item btn btn-sm">Page {{ currentPage }} of {{ totalPages }}</button>
+                        <button class="join-item btn btn-sm" :disabled="currentPage >= totalPages" @click="changePage(1)">»</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Grid (Home) -->
+        <div v-if="!hasSearched" class="flex-1 bg-base-200 py-12">
+            <div class="max-w-4xl mx-auto px-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div v-for="f in features" :key="f.title" class="bg-base-100 rounded-xl p-5 border border-base-300 hover:border-primary/30 transition-all">
+                        <div class="text-2xl mb-2">{{ f.icon }}</div>
+                        <h3 class="font-semibold text-sm mb-1">{{ f.title }}</h3>
+                        <p class="text-xs opacity-60">{{ f.desc }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-base-100 border-t border-base-300 py-6">
+            <div class="max-w-3xl mx-auto px-4">
+                <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <span class="font-black text-lg"><span class="text-primary">OKNLAB</span> Search</span>
+                        <div class="badge badge-ghost badge-sm">v1.0</div>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs opacity-60">
+                        <button class="hover:opacity-100 transition-opacity" @click="showSettings = true">Settings</button>
+                        <button class="hover:opacity-100 transition-opacity" @click="showBangsManager = true">Bangs</button>
+                        <button class="hover:opacity-100 transition-opacity" @click="showRankingManager = true">Rankings</button>
+                    </div>
+                    <div class="text-sm font-semibold opacity-80">
+                        Built by <span class="text-primary font-black">OKNLAB</span>
+                    </div>
+                </div>
+                <div class="text-center mt-4 text-xs opacity-40">
+                    No tracking · No cookies · No personal data storage · No IP logging · Completely ad-free
+                </div>
+            </div>
+        </footer>
+    </div>
+</div>
+
+<script>
+const { createApp, ref, computed, watch, onMounted, nextTick } = Vue;
+
+createApp({
+    setup() {
+        // State
+        const searchInput = ref(null);
+        const searchQuery = ref('');
+        const hasSearched = ref(false);
+        const isLoading = ref(false);
+        const results = ref([]);
+        const searchMeta = ref({});
+        const activeSource = ref('web');
+        const currentPage = ref(1);
+        const showSuggestions = ref(false);
+        const suggestions = ref([]);
+        const anonymousViewUrl = ref(null);
+        const showBangsManager = ref(false);
+        const showRankingManager = ref(false);
+        const showSettings = ref(false);
+
+        // Settings
+        const strictPrivacy = ref(true);
+        const hidePromoted = ref(true);
+        const fallbackProvider = ref('bing');
+        const resultsPerPage = ref(20);
+        const safeSearch = ref('moderate');
+        const theme = ref('dark');
+        const themes = ['light', 'dark', 'cyberpunk', 'forest', 'aqua', 'dracula', 'night', 'nord'];
+
+        // Rankings (stored in localStorage, never sent to server in strict mode)
+        const siteRankings = ref({});
+
+        // Bangs
+        const defaultBangs = {
+            w: { name: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Special:Search?search={q}' },
+            yt: { name: 'YouTube', url: 'https://www.youtube.com/results?search_query={q}' },
+            amazon: { name: 'Amazon', url: 'https://www.amazon.com/s?k={q}' },
+            gh: { name: 'GitHub', url: 'https://github.com/search?q={q}' },
+            so: { name: 'StackOverflow', url: 'https://stackoverflow.com/search?q={q}' },
+            r: { name: 'Reddit', url: 'https://www.reddit.com/search/?q={q}' },
+            maps: { name: 'Maps', url: 'https://www.openstreetmap.org/search?query={q}' },
+            npm: { name: 'NPM', url: 'https://www.npmjs.com/search?q={q}' },
+            pypi: { name: 'PyPI', url: 'https://pypi.org/search/?q={q}' },
+        };
+        const bangs = ref({ ...defaultBangs });
+        const newBang = ref({ key: '', name: '', url: '' });
+
+        const searchSources = [
+            { id: 'web', label: 'Web', icon: '🌐' },
+            { id: 'images', label: 'Images', icon: '🖼️' },
+            { id: 'news', label: 'News', icon: '📰' },
+            { id: 'social', label: 'Social', icon: '💬' },
+            { id: 'docs', label: 'Documents', icon: '📄' },
+        ];
+
+        const features = [
+            { icon: '🔒', title: 'No Tracking', desc: 'Zero user tracking. We never log your IP or set cookies.' },
+            { icon: '⚡', title: 'Bang Shortcuts', desc: 'Use !w, !yt, !amazon and add your own custom bangs.' },
+            { icon: '🚫', title: 'Ad-Free', desc: 'Completely ad-free results. No sponsored content ever.' },
+            { icon: '👤', title: 'No Profiling', desc: 'No user profiles built. Every search is independent.' },
+            { icon: '🌐', title: 'Anonymous Proxy', desc: 'Open any link through our proxy for full anonymity.' },
+            { icon: '⭐', title: 'Personal Rankings', desc: 'Manually boost or bury domains, stored locally only.' },
+        ];
+
+        const detectedBang = computed(() => {
+            const match = searchQuery.value.match(/^!(\w+)\s/);
+            if (match && bangs.value[match[1]]) {
+                return bangs.value[match[1]];
+            }
+            return null;
+        });
+
+        const filteredResults = computed(() => {
+            let items = results.value.filter(r => {
+                if (hidePromoted.value && r.promoted) return false;
+                if (activeSource.value !== 'web' && r.source_type && r.source_type !== activeSource.value) return false;
+                return true;
+            });
+
+            // Apply personalized rankings
+            items = items.map(r => ({
+                ...r,
+                _rankBoost: getSiteRanking(r.url)
+            }));
+            items.sort((a, b) => b._rankBoost - a._rankBoost);
+
+            return items;
+        });
+
+        const totalPages = computed(() => Math.ceil(filteredResults.value.length / resultsPerPage.value));
+
+        function extractDomain(url) {
+            try {
+                return new URL(url).hostname.replace('www.', '');
+            } catch {
+                return url;
+            }
+        }
+
+        function getSiteRanking(url) {
+            const domain = extractDomain(url);
+            return siteRankings.value[domain] || 0;
+        }
+
+        function boostSite(url) {
+            const domain = extractDomain(url);
+            siteRankings.value[domain] = (siteRankings.value[domain] || 0) + 1;
+            saveRankings();
+        }
+
+        function burySite(url) {
+            const domain = extractDomain(url);
+            siteRankings.value[domain] = (siteRankings.value[domain] || 0) - 1;
+            saveRankings();
+        }
+
+        function removeRanking(domain) {
+            delete siteRankings.value[domain];
+            siteRankings.value = { ...siteRankings.value };
+            saveRankings();
+        }
+
+        function saveRankings() {
+            if (!strictPrivacy.value) {
+                localStorage.setItem('oknlab_rankings', JSON.stringify(siteRankings.value));
+            }
+        }
+
+        function loadRankings() {
+            try {
+                const saved = localStorage.getItem('oknlab_rankings');
+                if (saved) siteRankings.value = JSON.parse(saved);
+            } catch {}
+        }
+
+        function setTheme(t) {
+            theme.value = t;
+            document.documentElement.setAttribute('data-theme', t);
+            localStorage.setItem('oknlab_theme', t);
+        }
+
+        async function performSearch() {
+            const query = searchQuery.value.trim();
+            if (!query) return;
+
+            showSuggestions.value = false;
+
+            // Check for bang redirect
+            const bangMatch = query.match(/^!(\w+)\s+(.*)/);
+            if (bangMatch) {
+                const bangKey = bangMatch[1];
+                const bangQuery = bangMatch[2];
+                if (bangs.value[bangKey]) {
+                    const url = bangs.value[bangKey].url.replace('{q}', encodeURIComponent(bangQuery));
+                    if (strictPrivacy.value) {
+                        anonymousViewUrl.value = url;
+                    } else {
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                    }
+                    return;
+                }
+            }
+
+            hasSearched.value = true;
+            isLoading.value = true;
+            currentPage.value = 1;
+
+            try {
+                const payload = {
+                    query: query,
+                    source: activeSource.value,
+                    page: currentPage.value,
+                    per_page: resultsPerPage.value,
+                    safe_search: safeSearch.value,
+                    hide_promoted: hidePromoted.value,
+                    strict_privacy: strictPrivacy.value,
+                    fallback_provider: fallbackProvider.value,
+                    rankings: strictPrivacy.value ? {} : siteRankings.value,
+                };
+
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                const data = await response.json();
+                results.value = data.results || [];
+                searchMeta.value = data.meta || {};
+            } catch (err) {
+                console.error('Search failed:', err);
+                results.value = [];
+                searchMeta.value = { error: 'Search failed. Please try again.' };
+            } finally {
+                isLoading.value = false;
+            }
+        }
+
+        async function onSearchInput() {
+            const q = searchQuery.value.trim();
+            if (q.length < 2) {
+                suggestions.value = [];
+                showSuggestions.value = false;
+                return;
+            }
+            try {
+                const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                suggestions.value = data.suggestions || [];
+                showSuggestions.value = suggestions.value.length > 0;
+            } catch {
+                suggestions.value = [];
+            }
+        }
+
+        function useSuggestion(s) {
+            searchQuery.value = s;
+            showSuggestions.value = false;
+            performSearch();
+        }
+
+        function useBangShortcut(key) {
+            searchQuery.value = `!${key} `;
+            nextTick(() => searchInput.value?.focus());
+        }
+
+        function clearSearch() {
+            searchQuery.value = '';
+            hasSearched.value = false;
+            results.value = [];
+            suggestions.value = [];
+            nextTick(() => searchInput.value?.focus());
+        }
+
+        function switchSource(src) {
+            activeSource.value = src;
+            if (hasSearched.value) performSearch();
+        }
+
+        function changePage(delta) {
+            currentPage.value += delta;
+            performSearch();
+        }
+
+        function openAnonymous(url) {
+            anonymousViewUrl.value = url;
+        }
+
+        function copyLink(url) {
+            navigator.clipboard.writeText(url).catch(() => {});
+        }
+
+        function highlightTerms(text) {
+            if (!text || !searchQuery.value) return text || '';
+            const terms = searchQuery.value.replace(/^!\w+\s+/, '').split(/\s+/).filter(t => t.length > 2);
+            let result = text;
+            terms.forEach(term => {
+                const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                result = result.replace(regex, '<mark class="bg-primary/20 text-primary rounded px-0.5">$1</mark>');
+            });
+            return result;
+        }
+
+        function addBang() {
+            if (!newBang.value.key || !newBang.value.url) return;
+            bangs.value[newBang.value.key] = {
+                name: newBang.value.name || newBang.value.key,
+                url: newBang.value.url,
+                custom: true
+            };
+            localStorage.setItem('oknlab_bangs', JSON.stringify(
+                Object.fromEntries(Object.entries(bangs.value).filter(([, v]) => v.custom))
+            ));
+            newBang.value = { key: '', name: '', url: '' };
+        }
+
+        function removeBang(key) {
+            delete bangs.value[key];
+            bangs.value = { ...bangs.value };
+            localStorage.setItem('oknlab_bangs', JSON.stringify(
+                Object.fromEntries(Object.entries(bangs.value).filter(([, v]) => v.custom))
+            ));
+        }
+
+        function loadCustomBangs() {
+            try {
+                const saved = localStorage.getItem('oknlab_bangs');
+                if (saved) {
+                    const custom = JSON.parse(saved);
+                    Object.entries(custom).forEach(([key, val]) => {
+                        bangs.value[key] = { ...val, custom: true };
+                    });
+                }
+            } catch {}
+        }
+
+        onMounted(() => {
+            loadRankings();
+            loadCustomBangs();
+            const savedTheme = localStorage.getItem('oknlab_theme');
+            if (savedTheme) setTheme(savedTheme);
+            searchInput.value?.focus();
+
+            // Close suggestions on click outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.relative')) showSuggestions.value = false;
+            });
+        });
+
+        return {
+            searchInput, searchQuery, hasSearched, isLoading, results, searchMeta,
+            activeSource, currentPage, showSuggestions, suggestions, anonymousViewUrl,
+            showBangsManager, showRankingManager, showSettings,
+            strictPrivacy, hidePromoted, fallbackProvider, resultsPerPage, safeSearch,
+            theme, themes, siteRankings, bangs, defaultBangs, newBang,
+            searchSources, features, detectedBang, filteredResults, totalPages,
+            extractDomain, getSiteRanking, boostSite, burySite, removeRanking,
+            setTheme, performSearch, onSearchInput, useSuggestion, useBangShortcut,
+            clearSearch, switchSource, changePage, openAnonymous, copyLink,
+            highlightTerms, addBang, removeBang, saveRankings,
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
