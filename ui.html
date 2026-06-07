@@ -541,15 +541,6 @@
           </label>
         </div>
         <div class="sec">
-          <h4>Fallback provider</h4>
-          <select class="sel" v-model="fallbackProvider">
-            <option value="independent">Independent index only</option>
-            <option value="bing">Bing</option>
-            <option value="google_proxy">Google (proxy)</option>
-            <option value="duckduckgo">DuckDuckGo</option>
-          </select>
-        </div>
-        <div class="sec">
           <h4>Results per page — {{ resultsPerPage }}</h4>
           <input class="range" type="range" min="5" max="50" v-model.number="resultsPerPage">
         </div>
@@ -594,7 +585,7 @@ createApp({
 
     const strictPrivacy = ref(true);
     const hidePromoted = ref(true);
-    const fallbackProvider = ref('bing');
+    const fallbackProvider = ref('connectnet');
     const resultsPerPage = ref(20);
     const safeSearch = ref('moderate');
 
@@ -789,5 +780,5 @@ createApp({
   }
 }).mount('#app');
 </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a079b80f8cc24193',t:'MTc4MDc3MzA0NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a07b9936186dba96',t:'MTc4MDc5Mjc1Mw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
