@@ -55,7 +55,8 @@ BROWSER_HEADERS = {
 }
 
 # Your provided independent search engine.
-CONNECTNET_URL = "https://connectnet.onrender.com/search?q="
+CONNECTNET_URL = "https://connectnet.onrender.com/search"
+CONNECTNET_TIMEOUT = 10  # max seconds for a connectnet request
 
 CONCURRENT_REQUESTS_LIMIT = 5
 SEARCH_CACHE_TTL = 3600  # seconds
@@ -245,26 +246,32 @@ class IndependentIndex:
 # ─── External search providers (all return a common result shape) ───────────
 
 async def search_connectnet(query: str, source_type: str = "web", limit: int = 20) -> list[dict]:
-    """Query the connectnet independent search engine (JSON API)."""
+    """Query the connectnet independent search engine (SearXNG-style JSON API).
+    This is the primary/default provider. Max request time is CONNECTNET_TIMEOUT (10s).
+    """
     results: list[dict] = []
     try:
-        async with httpx.AsyncClient(headers=BROWSER_HEADERS, timeout=20.0) as client:
+        async with httpx.AsyncClient(headers=BROWSER_HEADERS, timeout=CONNECTNET_TIMEOUT) as client:
             resp = await client.get(CONNECTNET_URL, params={"q": query, "format": "json"})
             resp.raise_for_status()
             data = resp.json()
-            for r in data.get("results", [])[:limit]:
+            for r in data.get("results", []):
                 url = r.get("url")
                 if not url:
                     continue
+                thumb = r.get("thumbnail") or r.get("img_src") or ""
                 results.append({
                     "title": r.get("title", "Untitled"),
                     "url": url,
                     "snippet": r.get("content", ""),
+                    "thumbnail": thumb,
                     "source_type": source_type,
                     "source_name": urlparse(url).netloc.replace("www.", ""),
                     "promoted": False,
                     "index_source": "connectnet",
                 })
+                if len(results) >= limit:
+                    break
     except Exception as e:
         logger.warning(f"[connectnet] Search error: {e}")
     return results
@@ -382,28 +389,53 @@ async def search_google_proxy(query: str, source_type: str = "web", limit: int =
     return results
 
 
+def _ddg_clean_href(href: str) -> str:
+    """Resolve DuckDuckGo's redirect/relative hrefs to a real URL."""
+    if href.startswith("//"):
+        href = "https:" + href
+    if "duckduckgo.com/l/" in href or href.startswith("/l/"):
+        qs = urllib.parse.urlparse(href).query
+        target = urllib.parse.parse_qs(qs).get("uddg")
+        if target:
+            href = target[0]
+    return urllib.parse.unquote(href)
+
+
 async def search_duckduckgo(query: str, source_type: str = "web", limit: int = 20) -> list[dict]:
-    """Search DuckDuckGo HTML endpoint (no tracking)."""
+    """Search DuckDuckGo HTML endpoint (no tracking). The most reliable scraper."""
     results: list[dict] = []
     try:
         async with httpx.AsyncClient(headers=BROWSER_HEADERS, follow_redirects=True, timeout=15.0) as client:
-            resp = await client.get("https://html.duckduckgo.com/html/", params={"q": query, "kl": "us-en"})
+            resp = await client.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": query, "kl": "us-en"},
+            )
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, "html.parser")
-            for item in soup.select("div.result")[:limit]:
-                link = item.select_one("a.result__a")
-                snip = item.select_one("a.result__snippet")
-                if link:
-                    href = link.get("href", "")
-                    if "duckduckgo.com" in href:
-                        parsed = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
-                        href = parsed.get("uddg", [href])[0]
-                    results.append({
-                        "title": link.get_text(strip=True),
-                        "url": urllib.parse.unquote(href),
-                        "snippet": snip.get_text(strip=True) if snip else "",
-                        "source_type": source_type, "promoted": False, "index_source": "duckduckgo",
-                    })
+
+            items = soup.select("div.result, div.web-result")
+            for item in items:
+                # Skip ad/sponsored blocks.
+                klass = " ".join(item.get("class", []))
+                if "result--ad" in klass or "result--sponsored" in klass:
+                    continue
+                link = item.select_one("a.result__a") or item.select_one("h2.result__title a")
+                if not link:
+                    continue
+                href = _ddg_clean_href(link.get("href", ""))
+                if not href.startswith("http"):
+                    continue
+                snip = item.select_one(".result__snippet")
+                results.append({
+                    "title": link.get_text(strip=True),
+                    "url": href,
+                    "snippet": snip.get_text(strip=True) if snip else "",
+                    "source_type": source_type,
+                    "promoted": False,
+                    "index_source": "duckduckgo",
+                })
+                if len(results) >= limit:
+                    break
     except Exception as e:
         logger.warning(f"[DuckDuckGo] Search error: {e}")
     return results
