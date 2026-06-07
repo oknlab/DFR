@@ -185,7 +185,7 @@ async def search_endpoint(request: Request):
 
     hide_promoted = bool(body.get("hide_promoted", True))
     strict_privacy = bool(body.get("strict_privacy", True))
-    fallback_provider = body.get("fallback_provider", "bing")
+    fallback_provider = body.get("fallback_provider", "connectnet")
     per_page = min(int(body.get("per_page", 20)), 50)
     page = max(int(body.get("page", 1)), 1)
 
