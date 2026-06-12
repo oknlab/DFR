@@ -35,6 +35,14 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from ranking import (
+    fuse_and_rank,
+    reciprocal_rank_fusion,
+    apply_community_ranking,
+    canonical_url,
+    get_vote_store,
+)
+
 try:  # Redis is optional — module works fully without it.
     from redis.asyncio import Redis as AsyncRedis
 except Exception:  # pragma: no cover
@@ -56,7 +64,6 @@ BROWSER_HEADERS = {
 
 # Your provided independent search engine.
 CONNECTNET_URL = "https://connectnet.onrender.com/search"
-CONNECTNET_TIMEOUT = 10  # max seconds for a connectnet request
 
 CONCURRENT_REQUESTS_LIMIT = 5
 SEARCH_CACHE_TTL = 3600  # seconds
@@ -246,32 +253,26 @@ class IndependentIndex:
 # ─── External search providers (all return a common result shape) ───────────
 
 async def search_connectnet(query: str, source_type: str = "web", limit: int = 20) -> list[dict]:
-    """Query the connectnet independent search engine (SearXNG-style JSON API).
-    This is the primary/default provider. Max request time is CONNECTNET_TIMEOUT (10s).
-    """
+    """Query the connectnet independent search engine (JSON API)."""
     results: list[dict] = []
     try:
-        async with httpx.AsyncClient(headers=BROWSER_HEADERS, timeout=CONNECTNET_TIMEOUT) as client:
+        async with httpx.AsyncClient(headers=BROWSER_HEADERS, timeout=10.0) as client:
             resp = await client.get(CONNECTNET_URL, params={"q": query, "format": "json"})
             resp.raise_for_status()
             data = resp.json()
-            for r in data.get("results", []):
+            for r in data.get("results", [])[:limit]:
                 url = r.get("url")
                 if not url:
                     continue
-                thumb = r.get("thumbnail") or r.get("img_src") or ""
                 results.append({
                     "title": r.get("title", "Untitled"),
                     "url": url,
                     "snippet": r.get("content", ""),
-                    "thumbnail": thumb,
                     "source_type": source_type,
                     "source_name": urlparse(url).netloc.replace("www.", ""),
                     "promoted": False,
                     "index_source": "connectnet",
                 })
-                if len(results) >= limit:
-                    break
     except Exception as e:
         logger.warning(f"[connectnet] Search error: {e}")
     return results
@@ -554,25 +555,58 @@ def _dedup_key(url: str) -> str:
 
 # ─── Public entry point #1: ranked LINKS for a results UI ───────────────────
 
+# Default fan-out set: all real web engines + the independent index.
+# connectnet/duckduckgo are the reliable ones; bing/google_proxy are included
+# but contribute nothing when they're blocked (they just return []).
+DEFAULT_FANOUT = ["connectnet", "duckduckgo", "bing", "google_proxy"]
+PROVIDER_BUDGET_S = 10.0  # total wall-clock budget for the parallel fan-out
+
+
+async def _run_provider(name: str, query: str, source_type: str, limit: int) -> tuple[str, list[dict]]:
+    """Run one provider, never raising — returns (name, results-or-empty)."""
+    fn = PROVIDERS.get(name)
+    if not fn:
+        return name, []
+    try:
+        return name, await fn(query, source_type, limit)
+    except Exception as e:  # defensive; providers already swallow most errors
+        logger.warning(f"[{name}] provider failed: {e}")
+        return name, []
+
+
 async def unified_search(
     query: str,
     source_type: str = "web",
     hide_promoted: bool = True,
-    fallback_provider: str = "bing",
+    fallback_provider: str = "connectnet",
     limit: int = 20,
     page: int = 1,
     rankings: Optional[dict] = None,
     redis_client: Optional["AsyncRedis"] = None,
+    multi: bool = True,
+    async_store: Optional[Any] = None,
+    engine_weights: Optional[dict] = None,
 ) -> dict[str, Any]:
     """
-    Independent index first, then a fallback provider; merged, deduped, ranked.
+    Multi-engine metasearch with Reciprocal Rank Fusion + community ranking.
+
+    - multi=True (default): fan out to all DEFAULT_FANOUT providers + the
+      independent index in parallel (within PROVIDER_BUDGET_S), then fuse by
+      RRF so cross-engine agreement wins.
+    - multi=False: legacy single-provider mode (uses `fallback_provider`).
+
+    `rankings` is the browser's client-side Boost/Bury map; it is applied for
+    re-ranking but never stored, preserving strict-privacy mode.
+
     Returns {"results": [...], "meta": {...}} — links + metadata, no full text.
     """
     start = time.time()
 
+    # Cache key: only safe to share when no per-user rankings are applied.
     cache_key = None
-    if redis_client and not rankings:  # rankings make results user-specific
-        cache_key = _search_cache_key(query, source_type, fallback_provider, page)
+    cache_tag = "multi" if multi else fallback_provider
+    if redis_client and not rankings:
+        cache_key = _search_cache_key(query, source_type, cache_tag, page)
         try:
             cached = await redis_client.get(cache_key)
             if cached:
@@ -581,42 +615,71 @@ async def unified_search(
         except Exception as e:
             logger.warning(f"Redis read error: {e}")
 
-    independent = _index.search(query, source_type=source_type,
-                                hide_promoted=hide_promoted, limit=limit)
+    # ── Gather per-engine ranked lists ──────────────────────────────────────
+    engine_results: dict[str, list[dict]] = {}
 
-    provider_fn = PROVIDERS.get(fallback_provider)
-    fallback = await provider_fn(query, source_type, limit) if provider_fn else []
-    provider_name = f"independent + {fallback_provider}" if provider_fn else "independent"
+    # Independent index is local and instant.
+    engine_results["independent"] = _index.search(
+        query, source_type=source_type, hide_promoted=hide_promoted, limit=limit
+    )
 
-    seen: set[str] = set()
-    merged: list[dict] = []
-    for r in independent:
-        k = _dedup_key(r["url"])
-        if k not in seen:
-            seen.add(k)
-            merged.append(r)
-    for r in fallback:
-        if hide_promoted and r.get("promoted", False):
-            continue
-        k = _dedup_key(r["url"])
-        if k not in seen:
-            seen.add(k)
-            merged.append(r)
+    if multi:
+        tasks = [_run_provider(n, query, source_type, limit) for n in DEFAULT_FANOUT]
+        try:
+            gathered = await asyncio.wait_for(asyncio.gather(*tasks), timeout=PROVIDER_BUDGET_S)
+        except asyncio.TimeoutError:
+            logger.warning("Provider fan-out exceeded budget; using partial results")
+            gathered = []
+        for name, res in gathered:
+            engine_results[name] = res
+    else:
+        name, res = await _run_provider(fallback_provider, query, source_type, limit)
+        engine_results[name] = res
 
-    if rankings:
-        for r in merged:
-            try:
-                domain = urllib.parse.urlparse(r["url"]).netloc.replace("www.", "")
-                r["score"] = r.get("score", 0) + (rankings.get(domain, 0) * 2.0)
-            except Exception:
-                pass
-        merged.sort(key=lambda x: x.get("score", 0), reverse=True)
+    # ── Fuse (RRF) + community/client ranking ───────────────────────────────
+    if async_store is not None:
+        # Redis-backed path: learned weights + persisted community scores.
+        fused = reciprocal_rank_fusion(
+            engine_results, weights=engine_weights, hide_promoted=hide_promoted
+        )
+        urls = [e["url"] for e in fused if e.get("url")]
+        try:
+            community = await async_store.community_scores_for(query, urls)
+        except Exception as e:
+            logger.warning(f"Community score fetch failed: {e}")
+            community = {}
+        fused = apply_community_ranking(
+            fused, community_scores=community, client_rankings=rankings or None
+        )
+    else:
+        # Sync fallback (in-memory store, default weights).
+        fused = fuse_and_rank(
+            engine_results,
+            query=query,
+            weights=engine_weights,
+            hide_promoted=hide_promoted,
+            client_rankings=rankings or None,
+        )
+
+    contributing = [e for e, r in engine_results.items() if r]
+    provider_name = " + ".join(contributing) if contributing else "independent"
+
+    # Strip internal fields (leading underscore) before returning to clients.
+    top = fused[:limit]
+    for r in top:
+        for k in [k for k in r if k.startswith("_")]:
+            r.pop(k, None)
 
     payload = {
-        "results": merged[:limit],
+        "results": top,
         "meta": {
-            "query": query, "source": source_type, "provider": provider_name,
-            "total": len(merged), "time_ms": round((time.time() - start) * 1000, 1),
+            "query": query,
+            "source": source_type,
+            "provider": provider_name,
+            "engines": contributing,
+            "fusion": "rrf",
+            "total": len(fused),
+            "time_ms": round((time.time() - start) * 1000, 1),
             "privacy": "strict",
         },
     }
@@ -629,6 +692,7 @@ async def unified_search(
             logger.warning(f"Redis write error: {e}")
 
     return payload
+
 
 
 # ─── Bridge: enrich existing search results with full crawled text ──────────
