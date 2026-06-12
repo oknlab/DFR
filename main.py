@@ -21,6 +21,7 @@ from web_search import (
     proxy_fetch,
     unified_search,
 )
+from ranking import AsyncVoteStore, EngineWeights
 
 # ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -32,12 +33,14 @@ UI_FILE = Path(__file__).parent / "ui.html"
 # ─── Redis Connection ───────────────────────────────────────────────────────
 
 redis_client: aioredis.Redis | None = None
+vote_store: AsyncVoteStore | None = None
+engine_weights: EngineWeights | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup/shutdown lifecycle."""
-    global redis_client
+    global redis_client, vote_store, engine_weights
     try:
         redis_client = aioredis.from_url(
             REDIS_URL,
@@ -50,6 +53,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[!] Redis unavailable ({e}), running without cache")
         redis_client = None
+
+    # Ranking state: Redis-persisted votes + learned engine weights.
+    # Both degrade to in-memory / defaults when Redis is absent.
+    vote_store = AsyncVoteStore(redis_client)
+    engine_weights = EngineWeights(redis_client)
+    await engine_weights.load()
+    print(f"[\u2713] Engine weights: {engine_weights.current()}")
 
     yield
 
@@ -210,6 +220,8 @@ async def search_endpoint(request: Request):
         page=page,
         rankings=rankings or None,
         redis_client=None,  # caching handled here at the API layer
+        async_store=vote_store,
+        engine_weights=engine_weights.current() if engine_weights else None,
     )
 
     # Cache the un-personalized payload.
@@ -258,6 +270,56 @@ async def proxy_endpoint(url: str = ""):
             "Referrer-Policy": "no-referrer",
         },
     )
+
+
+@app.post("/api/vote")
+async def vote_endpoint(request: Request):
+    """Record a Boost/Bury vote into the community ranking store.
+
+    Body: {"query": str, "url": str, "value": 1|-1, "engines": [str, ...]}
+    Votes are scoped per (query, url), time-decayed, and persisted to Redis.
+    The contributing `engines` also nudge that engine's learned trust weight.
+    No user identity, IP, or cookie is stored.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid body"}, status_code=400)
+
+    query = str(body.get("query", "")).strip()
+    url = str(body.get("url", "")).strip()
+    try:
+        value = int(body.get("value", 0))
+    except (TypeError, ValueError):
+        value = 0
+    engines = body.get("engines") or []
+    if not isinstance(engines, list):
+        engines = []
+    engines = [str(e) for e in engines][:8]
+
+    if not query or not url or value == 0:
+        return JSONResponse({"ok": False, "error": "Need query, url, and non-zero value"}, status_code=400)
+
+    v = 1 if value > 0 else -1
+    if vote_store is not None:
+        await vote_store.add(query, url, v, engines)
+        up, down = await vote_store.decayed_counts(query, url)
+        community = await vote_store.community_score(query, url)
+    else:
+        up = down = 0.0
+        community = 0.0
+
+    # (b) Learn engine weights from this vote's contributing engines.
+    if engine_weights is not None and engines:
+        await engine_weights.learn(engines, v)
+
+    return JSONResponse({
+        "ok": True,
+        "community_score": round(community, 4),
+        "up": round(up, 3),
+        "down": round(down, 3),
+        "engine_weights": engine_weights.current() if engine_weights else {},
+    })
 
 
 @app.get("/api/health")
