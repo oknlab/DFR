@@ -186,6 +186,10 @@
   .badge.warn{background:var(--pale-yellow-bg);color:var(--pale-yellow-fg)}
   .badge.up{background:var(--pale-green-bg);color:var(--pale-green-fg)}
   .badge.down{background:var(--pale-red-bg);color:var(--pale-red-fg)}
+  .badge.info{background:var(--pale-blue-bg);color:var(--pale-blue-fg)}
+  .diag{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .diag .badge{text-transform:none;letter-spacing:0.02em}
+  .diag .eng{background:var(--surface-2);color:var(--text-dim);border:1px solid var(--border)}
   .card .title{
     font-family:var(--serif);font-size:20px;letter-spacing:-0.02em;line-height:1.25;color:var(--text);
     display:inline-block;margin-bottom:6px;
@@ -388,6 +392,15 @@
         </div>
         <a :href="r.url" target="_blank" rel="noopener noreferrer" class="title">{{ r.title }}</a>
         <p class="snippet" v-html="highlightTerms(r.snippet)"></p>
+
+        <!-- Fusion diagnostics -->
+        <div v-if="r.engines && r.engines.length" class="diag">
+          <span v-if="r.agreement > 1" class="badge info" :title="'Found by '+r.agreement+' engines'">{{ r.agreement }}× agreement</span>
+          <span v-for="e in r.engines" :key="e" class="badge eng">{{ e }}</span>
+          <span v-if="r.community_score > 0" class="badge up" :title="'Wilson community score'">community {{ r.community_score.toFixed(2) }}</span>
+          <span v-if="r.rrf_score" class="badge neutral" :title="'Reciprocal Rank Fusion score'">rrf {{ r.rrf_score.toFixed(3) }}</span>
+        </div>
+
         <div class="actions">
           <button class="act" @click="openAnonymous(r.url)">
             <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96Zm40,116.94V184a8,8,0,0,1-16,0V172.94a24,24,0,1,1,16,0Z"/></svg>
@@ -397,11 +410,11 @@
             <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"/></svg>
             {{ copiedUrl===r.url ? 'Copied' : 'Copy' }}
           </button>
-          <button class="act up" @click="boostSite(r.url)">
+          <button class="act up" @click="boostSite(r)">
             <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,138.34a8,8,0,0,1-11.32,11.32L136,91.31V224a8,8,0,0,1-16,0V91.31L61.66,149.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0Z"/></svg>
             Boost
           </button>
-          <button class="act down" @click="burySite(r.url)">
+          <button class="act down" @click="burySite(r)">
             <svg class="ico" viewBox="0 0 256 256" fill="currentColor"><path d="M205.66,117.66l-72,72a8,8,0,0,1-11.32,0l-72-72a8,8,0,0,1,11.32-11.32L120,164.69V32a8,8,0,0,1,16,0V164.69l58.34-58.35a8,8,0,0,1,11.32,11.32Z"/></svg>
             Bury
           </button>
@@ -651,8 +664,23 @@ createApp({
 
     function extractDomain(url){ try { return new URL(url).hostname.replace('www.',''); } catch { return url; } }
     function getSiteRanking(url){ return siteRankings.value[extractDomain(url)] || 0; }
-    function boostSite(url){ const d=extractDomain(url); siteRankings.value[d]=(siteRankings.value[d]||0)+1; saveRankings(); }
-    function burySite(url){ const d=extractDomain(url); siteRankings.value[d]=(siteRankings.value[d]||0)-1; saveRankings(); }
+    function sendVote(result, value){
+      // Community signal: scoped to (query, url), no identity sent. Fire-and-forget.
+      // `engines` lets the server learn per-engine trust from this vote.
+      try {
+        fetch('/api/vote', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            query: searchQuery.value.trim(),
+            url: result.url,
+            value,
+            engines: result.engines || [],
+          }),
+        }).catch(()=>{});
+      } catch {}
+    }
+    function boostSite(r){ const u=typeof r==='string'?{url:r}:r; const d=extractDomain(u.url); siteRankings.value[d]=(siteRankings.value[d]||0)+1; saveRankings(); sendVote(u, 1); }
+    function burySite(r){ const u=typeof r==='string'?{url:r}:r; const d=extractDomain(u.url); siteRankings.value[d]=(siteRankings.value[d]||0)-1; saveRankings(); sendVote(u, -1); }
     function removeRanking(domain){ delete siteRankings.value[domain]; siteRankings.value={...siteRankings.value}; saveRankings(); }
     function saveRankings(){ try{ localStorage.setItem('oknlab_rankings', JSON.stringify(siteRankings.value)); }catch{} }
     function loadRankings(){ try{ const s=localStorage.getItem('oknlab_rankings'); if(s) siteRankings.value=JSON.parse(s); }catch{} }
@@ -780,5 +808,5 @@ createApp({
   }
 }).mount('#app');
 </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a07b9936186dba96',t:'MTc4MDc5Mjc1Mw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
